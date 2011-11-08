@@ -14,7 +14,8 @@
         </item>
         <item>
             <key> <string>arguments_src</string> </key>
-            <value> <string>uid</string> </value>
+            <value> <string>query\r\n
+date</string> </value>
         </item>
         <item>
             <key> <string>cache_time_</string> </key>
@@ -30,9 +31,7 @@
         </item>
         <item>
             <key> <string>connection_hook</string> </key>
-            <value>
-              <none/>
-            </value>
+            <value> <string></string> </value>
         </item>
         <item>
             <key> <string>connection_id</string> </key>
@@ -40,7 +39,7 @@
         </item>
         <item>
             <key> <string>id</string> </key>
-            <value> <string>z0_uncatalog_stock</string> </value>
+            <value> <string>Resource_zGetInventoryCacheResult</string> </value>
         </item>
         <item>
             <key> <string>max_cache_</string> </key>
@@ -48,17 +47,23 @@
         </item>
         <item>
             <key> <string>max_rows_</string> </key>
-            <value> <int>1000</int> </value>
+            <value> <int>1</int> </value>
         </item>
         <item>
             <key> <string>src</string> </key>
             <value> <string encoding="cdata"><![CDATA[
 
-DELETE FROM inventory_cache WHERE date > (SELECT min(date) from stock where <dtml-sqltest uid op=eq type=int>)\n
-;\n
-<dtml-var "\'\\0\'">\n
-\n
-DELETE FROM stock WHERE <dtml-sqltest uid op=eq type=int>
+SELECT \n
+  date, \n
+  result \n
+FROM \n
+  inventory_cache \n
+WHERE \n
+  inventory_cache.query=<dtml-sqlvar query type="string"> \n
+  AND \n
+  inventory_cache.date <= <dtml-sqlvar date type="datetime"> \n
+ORDER BY \n
+  date DESC
 
 ]]></string> </value>
         </item>

@@ -39,13 +39,11 @@ import unittest
 import transaction
 from AccessControl.SecurityManagement import newSecurityManager
 from DateTime import DateTime
-from Testing import ZopeTestCase
 
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from Products.ERP5Type.tests.utils import reindex
 from Products.ERP5Type.tests.backportUnittest import expectedFailure
-from Products.DCWorkflow.DCWorkflow import ValidationFailed
-from Products.ERP5Type.Base import _aq_reset
+from Products.ERP5.Tool.SimulationTool import MYSQL_MIN_DATETIME_RESOLUTION
 
 class InventoryAPITestCase(ERP5TypeTestCase):
   """Base class for Inventory API Tests {{{
@@ -2169,133 +2167,62 @@ class TestTrackingList(InventoryAPITestCase):
                            '%s=now - %i, aggregate should be at node %i but is at node %i' % \
                            (param_id, now - date, node_uid_to_node_number[location_uid], node_uid_to_node_number[uid_list[0]]))
 
-class TestInventoryDocument(InventoryAPITestCase):
-  """ Test impact of creating full inventories of stock points on inventory
-  lookup. This is an optimisation to regular inventory system to avoid
-  reading all stock entries since a node/section/payment is used when
-  gathering its amounts of resources.
+class TestInventoryCacheTable(InventoryAPITestCase):
+  """ Test impact of creating cache entries into inventory_cache table
+  This is an optimisation on stock results to avoid reading all stock entries
+  for the same request.
+
+  Cache description:
+  A cache entry is defined by:
+  - a request identifier (implementation detail: MD5 of query source code)
+  - the date of first possible stock row *excluded* from cache entry (even if
+    there is no row at that exact date)
+  - cache data (implementation detail: pickle of a dict containing selected
+    properties of a query result)
+  Cache filling:
+  Cache might be filled by any request with either an at_date or a to_date,
+  and without a from_date. Cache entry date is chosen as "{at,to}_date -
+  cache_lag / 2".
+  No cache entry is created if a cache entry newer than "{at,to}_date -
+  cache_lag" exists.
+  Cache flush:
+  Cache is flushed by any modification (actually triggered on indexation or
+  de-indexation) on a stock-indexed document (aka movement). Only cache
+  entries with a date greater than any modified stock line are dropped.
   """
-  def _createAutomaticInventoryAtDate(self, date, override_inventory=None,
-                                      full_inventory=False):
-    """
-      getInventoryList is tested to work in another unit test.
-      If full_inventory is false, only inventoriate the first resource
-      found.
-    """
-    self.tic() # Tic so that grabbed inventory is up to date.
-    getInventoryList = self.getSimulationTool().getInventoryList
-    portal = self.getPortal()
-    inventory_module = portal.getDefaultModule(portal_type='Inventory')
-    inventory = inventory_module.newContent(portal_type='Inventory')
-    inventory.edit(destination_value=self.node,
-                   destination_section_value=self.section,
-                   start_date=date,
-                   full_inventory=full_inventory)
-    inventory_list = getInventoryList(node_uid=self.node.getUid(),
-                                      at_date=date,
-                                      omit_output=1)
-    if full_inventory:
-      inventory_list = [inventory_list[0]]
-    # TODO: Define a second resource which will only be present in full
-    # inventories. This will allow testing getInventoryList.
-    #else:
-    #  inventory_list.append({'resource_relative_url': '','total_quantity': 50,'variation_text': ''})
-    for inventory_line in inventory_list:
-      line = inventory.newContent(portal_type='Inventory Line')
-      if override_inventory is None:
-        total_quantity = inventory_line['total_quantity']
-      else:
-        total_quantity = override_inventory
-      line.edit(resource=inventory_line['resource_relative_url'],
-                inventory=total_quantity,
-                variation_text=inventory_line['variation_text'])
-      # TODO: pass more properties through from calculated inventory to
-      # inventory lines if needed.
-    inventory.deliver()
-    return inventory
-    
-  def _populateInventoryModule(self):
-    """
-      Create 3 inventories:
-         Type     Deviation  Date (see stepCreateInitialMovements)
-       - partial  1000       
-       - full     10000      
-       - full     100000     
-    """
-    self.BASE_QUANTITY = BASE_QUANTITY = 1
-    # TODO: It would be better to strip numbers below seconds instead of below
-    # days.
-    self.MAX_DATE = MAX_DATE = DateTime(DateTime().Date()) - 1
-    self.DUPLICATE_INVENTORY_DATE = MAX_DATE - 8 # Newest
-    self.INVENTORY_DATE_3 = INVENTORY_DATE_3 = MAX_DATE - 10 # Newest
-    self.INVENTORY_QUANTITY_3 = INVENTORY_QUANTITY_3 = 100000
-    self.INVENTORY_DATE_2 = INVENTORY_DATE_2 = INVENTORY_DATE_3 - 10
-    self.INVENTORY_QUANTITY_2 = INVENTORY_QUANTITY_2 = 10000
-    self.INVENTORY_DATE_1 = INVENTORY_DATE_1 = INVENTORY_DATE_2 - 10 # Oldest
-    self.INVENTORY_QUANTITY_1 = INVENTORY_QUANTITY_1 = 1000
-
-    # "actual" quantities are the quantities which will end up in the stock
-    # table.
-    self.ACTUAL_INVENTORY_QUANTITY_1 = INVENTORY_QUANTITY_1 - \
-      BASE_QUANTITY
-    self.ACTUAL_INVENTORY_QUANTITY_2 = INVENTORY_QUANTITY_2 - \
-      (self.INVENTORY_QUANTITY_1 + BASE_QUANTITY)
-    self.ACTUAL_INVENTORY_QUANTITY_3 = INVENTORY_QUANTITY_3 - \
-      (self.INVENTORY_QUANTITY_2 + BASE_QUANTITY)
-    
-    self.movement_uid_list = movement_uid_list = []
-    # Initial movement of 1
-    movement = self._makeMovement(quantity=BASE_QUANTITY,
-      start_date=INVENTORY_DATE_1 - 1,
-      simulation_state='delivered')
-    movement_uid_list.append(movement.getUid())
-    # First (partial) inventory of 1 000
-    partial_inventory = self._createAutomaticInventoryAtDate(
-      date=INVENTORY_DATE_1, override_inventory=INVENTORY_QUANTITY_1)
-    # Second movement of 1
-    movement = self._makeMovement(quantity=BASE_QUANTITY,
-      start_date=INVENTORY_DATE_2 - 1,
-      simulation_state='delivered')
-    movement_uid_list.append(movement.getUid())
-    # Second (full) inventory of 10 000
-    self._createAutomaticInventoryAtDate(date=INVENTORY_DATE_2,
-      override_inventory=INVENTORY_QUANTITY_2,
-      full_inventory=True)
-    # Third movement of 1
-    movement = self._makeMovement(quantity=BASE_QUANTITY,
-      start_date=INVENTORY_DATE_3 - 1,
-      simulation_state='delivered')
-    movement_uid_list.append(movement.getUid())
-    # Third (full) inventory of 100 000
-    self._createAutomaticInventoryAtDate(date=INVENTORY_DATE_3,
-      override_inventory=INVENTORY_QUANTITY_3,
-      full_inventory=True)
-    # Fourth movement of 1
-    movement = self._makeMovement(quantity=BASE_QUANTITY,
-      start_date=INVENTORY_DATE_3 + 1,
-      simulation_state='delivered')
-    movement_uid_list.append(movement.getUid())
-    self.tic()
-    manage_test = self.getPortal().erp5_sql_transactionless_connection.manage_test
-    def executeSQL(query):
-      manage_test("BEGIN\x00%s\x00COMMIT" % (query, ))
-      
-    # Make stock table inconsistent with inventory_stock to make sure
-    # inventory_stock is actually tested.
-    executeSQL("UPDATE stock SET quantity=quantity*2 WHERE uid IN (%s)" %
-               (', '.join([str(x) for x in movement_uid_list]), ))
-    self.BASE_QUANTITY *= 2
-    # Make inventory_stock table inconsistent with stock to make sure
-    # inventory_stock is actually not used when checking that partial
-    # inventory is not taken into account.
-    executeSQL("UPDATE inventory_stock SET quantity=quantity*2 WHERE "\
-               "uid IN (%s)" % (', '.join([str(x.getUid()) for x in \
-                                           partial_inventory.objectValues()]),
-                               ))
-
   def afterSetUp(self):
     InventoryAPITestCase.afterSetUp(self)
-    self._populateInventoryModule()
+    self.CACHE_LAG = cache_lag = self.getSimulationTool().getInventoryCacheLag()
+    min_lag = cache_lag / 2
+    self.NOW = now = DateTime(DateTime().strftime("%Y-%m-%d %H:%M:%S UTC"))
+    self.CACHE_DATE = cache_date = now - min_lag
+    self.LAST_CACHED_MOVEMENT_DATE = last_cached_mouvement_date = \
+      cache_date - MYSQL_MIN_DATETIME_RESOLUTION
+    # First movement, won't be into cache
+    self.INVENTORY_DATE_3 = INVENTORY_DATE_3 = now - 10
+    self.INVENTORY_QUANTITY_3 = INVENTORY_QUANTITY_3 = 100000
+    # Second movement, won't be into cache, just at the limit of cache min_lag
+    self.INVENTORY_DATE_2 = INVENTORY_DATE_2 = cache_date
+    self.INVENTORY_QUANTITY_2 = INVENTORY_QUANTITY_2 = 10000
+    # Next will be stored as cache result after first getInventory
+    self.INVENTORY_DATE_1 = INVENTORY_DATE_1 = last_cached_mouvement_date
+    self.INVENTORY_QUANTITY_1 = INVENTORY_QUANTITY_1 = 1000
+    # Create movements
+    self._makeMovement(
+      quantity=INVENTORY_QUANTITY_1,
+      start_date=INVENTORY_DATE_1,
+      simulation_state='delivered',
+    )
+    self._makeMovement(
+      quantity=INVENTORY_QUANTITY_2,
+      start_date=INVENTORY_DATE_2,
+      simulation_state='delivered',
+    )
+    self._makeMovement(
+      quantity=INVENTORY_QUANTITY_3,
+      start_date=INVENTORY_DATE_3,
+      simulation_state='delivered',
+    )
     simulation_tool = self.getSimulationTool()
     self.getInventory = simulation_tool.getInventory
     self.getInventoryList = simulation_tool.getInventoryList
@@ -2363,334 +2290,316 @@ class TestInventoryDocument(InventoryAPITestCase):
           raise AssertionError, 'No line in %r match %r' % \
                                 (inventory_list, criterion_dict)
 
+  def _fillCache(self, method):
+    result = method(node_uid=self.node_uid, to_date=self.NOW)
+    self.assertEqual(value, sum(self.INVENTORY_QUANTITY_1,
+      self.INVENTORY_QUANTITY_2, self.INVENTORY_QUANTITY_3))
+    return result
+
+  def doubleStockValue(self):
+    """
+      Make stock table inconsistent so that we can check that
+      optimisation is well used
+    """
+    # in the test, this will always be the date at which an entry is put into
+    # inventory_cache
+    self.getPortalObject().erp5_sql_transactionless_connection.manage_test(
+      "BEGIN\0"
+      "UPDATE stock SET quantity=quantity*2 WHERE date < '%s'\0"
+      "COMMIT" % ((self.CACHE_DATE).ISO(), ))
+    transaction.commit()
+
   def assertInventoryEquals(self, value, inventory_kw):
     """
       Check that optimised getInventory call is equal to given value
       and that unoptimised call is *not* equal to thi value.
     """
+    # Make stock table inconsistent to be sure it uses cache
+    self.doubleStockValue()
+    # Check it use cache
     self.assertEquals(value, self.getInventory(**inventory_kw))
     self.assertNotEquals(value,
                          self.getInventory(optimisation__=False,
                                            **inventory_kw))
 
-  def test_01_CurrentInventoryWithFullInventory(self):
+  def test_01_CurrentInventory(self):
     """
-      Check that inventory optimisation is executed when querying current
-      amount (there is a usable full inventory which is the latest).
+      Check that optimisation is executed when querying current
+      amount
     """
-    self.assertInventoryEquals(value=self.INVENTORY_QUANTITY_3 + \
-                                  self.BASE_QUANTITY,
-                            inventory_kw={'node_uid': self.node_uid})
+    self.assertInventoryEquals(
+      self._fillCache(self.getInventory),
+      inventory_kw={
+        'node_uid': self.node_uid,
+        'to_date': self.NOW,
+      }
+    )
 
-  def test_02_InventoryAtLatestFullInventoryDate(self):
+  def test_02_InventoryAtCacheDate(self):
     """
-      Check that inventory optimisation is executed when querying an amount
-      at the exact time of latest usable full inventory.
+      Check that optimisation is executed when querying an amount
+      at the exact time of the cache of result
     """
-    self.assertInventoryEquals(value=self.INVENTORY_QUANTITY_3,
-                            inventory_kw={'node_uid': self.node_uid,
-                                          'at_date': self.INVENTORY_DATE_3})
+    self._fillCache(self.getInventory)
+    # We got results from cache + results from stock
+    self.assertInventoryEquals(
+      self.INVENTORY_QUANTITY_2 + self.INVENTORY_QUANTITY_1,
+      inventory_kw={
+        'node_uid': self.node_uid,
+        'at_date': self.CACHE_DATE,
+      },
+    )
 
-  def test_03_InventoryAtEarlierFullInventoryDate(self):
+  def test_03_InventoryToCacheDate(self):
     """
-      Check that inventory optimisation is executed when querying past
-      amount (there is a usable full inventory which is not the latest).
+      Check that optimisation is executed when querying an amount
+      that will only take into account cache data.
     """
-    self.assertInventoryEquals(value=self.INVENTORY_QUANTITY_2 + \
-                                  self.BASE_QUANTITY,
-                            inventory_kw={'node_uid': self.node_uid,
-                                          'at_date': self.INVENTORY_DATE_3 - \
-                                                     1})
+    self._fillCache(self.getInventory)
+    # We got only results from cache
+    self.assertInventoryEquals(
+      self.INVENTORY_QUANTITY_1,
+      inventory_kw={
+        'node_uid': self.node_uid,
+        'to_date': self.CACHE_DATE,
+      },
+    )
 
-  def test_04_InventoryBeforeFullInventoryAfterPartialInventory(self):
+  def test_04_InventoryList(self):
     """
-      Check that optimisation is not executed when querying past amount
-      with no usable full inventory.
+      Check that optimisation is executed when querying current
+      amount list
+    """
+    self._fillCache(self.getInventoryList)
+    # Check we got all results
+    self._checkInventoryList(
+      self.getInventoryList(node_uid=self.node_uid, to_date=self.NOW),
+      [{
+        'date': self.INVENTORY_DATE_3,
+        'inventory': self.INVENTORY_QUANTITY_3,
+        'node_uid': self.node_uid,
+      }, {
+        'date': self.INVENTORY_DATE_2,
+        'inventory': self.INVENTORY_QUANTITY_2,
+        'node_uid': self.node_uid,
+      }, {
+        'date': self.INVENTORY_DATE_1,
+        'inventory': self.INVENTORY_QUANTITY_1,
+        'node_uid': self.node_uid,
+      }],
+    )
 
-      If optimisation was executed,
-        self.INVENTORY_QUANTITY_1 * 2 + self.BASE_QUANTITY * 2
-      would be found.
+  def test_05_InventoryListAtCacheDate(self):
     """
-    self.assertEquals(self.ACTUAL_INVENTORY_QUANTITY_1 + \
-                      self.BASE_QUANTITY * 2,
-                      self.getInventory(node_uid=self.node_uid,
-                                   at_date=self.INVENTORY_DATE_2 - 1))
+      Check that optimisation is executed when querying an amount list
+      at the exact time of the cache of result
+    """
+    self._fillCache(self.getInventoryList)
+    # We got results from cache + results from stock
+    self._checkInventoryList(
+      self.getInventoryList(node_uid=self.node_uid, at_date=self.CACHE_DATE),
+      [{
+        'date': self.INVENTORY_DATE_1,
+        'inventory': self.INVENTORY_QUANTITY_1,
+        'node_uid': self.node_uid,
+      }, {
+        'date': self.INVENTORY_DATE_2,
+        'inventory': self.INVENTORY_QUANTITY_2,
+        'node_uid': self.node_uid,
+      }],
+    )
 
-  def test_05_InventoryListWithFullInventory(self):
+  def test_06_InventoryListToCacheDate(self):
     """
-      Check that inventory optimisation is executed when querying current
-      amount list (there is a usable full inventory which is the latest).
+      Check that optimisation is executed when querying an amount list
+      that will only take into account cache data.
     """
-    inventory = self.getInventoryList(node_uid=self.node_uid)
-    reference_inventory = [
-      {'date': self.INVENTORY_DATE_3,
-       'inventory': self.INVENTORY_QUANTITY_3,
-       'node_uid': self.node_uid},
-      {'date': self.INVENTORY_DATE_3 + 1,
-       'inventory': self.BASE_QUANTITY,
-       'node_uid': self.node_uid}
-    ]
-    self._checkInventoryList(inventory, reference_inventory)
+    self._fillCache(self.getInventoryList)
+    # We got only results from cache
+    self._checkInventoryList(
+      self.getInventoryList(node_uid=self.node_uid, to_date=self.CACHE_DATE),
+      [{
+        'date': self.INVENTORY_DATE_1,
+        'inventory': self.INVENTORY_QUANTITY_1,
+        'node_uid': self.node_uid,
+      }],
+    )
 
-  def test_06_InventoryListAtLatestFullInventoryDate(self):
+  def test_07_InventoryListGroupedByResource(self):
     """
-      Check that inventory optimisation is executed when querying past
-      amount list (there is a usable full inventory which is not the latest).
+      Check that optimisation is executed when grouping inventory list
+      by resource explicitely
     """
-    inventory = self.getInventoryList(node_uid=self.node_uid,
-                                      at_date=self.INVENTORY_DATE_3)
-    reference_inventory = [
-      {'date': self.INVENTORY_DATE_3,
-       'inventory': self.INVENTORY_QUANTITY_3,
-       'node_uid': self.node_uid}
-    ]
-    self._checkInventoryList(inventory, reference_inventory)
+    inventory_kw = {
+      'node_uid': self.node_uid,
+      'to_date': self.NOW,
+      'group_by_resource': 1,
+    }
+    # Fill cache
+    self.getInventoryList(**inventory_kw)
+    # Check we got all results
+    reference_inventory = 
+    self._checkInventoryList(
+      self.getInventoryList(**inventory_kw),
+      [{
+        'inventory': self.INVENTORY_QUANTITY_3 + self.INVENTORY_QUANTITY_2 + \
+          self.INVENTORY_QUANTITY_1,
+        'resource_uid': self.resource.getUid(),
+        'node_uid': self.node_uid,
+      }],
+    )
 
-  def test_07_InventoryListAtEarlierFullInventoryDate(self):
+  def test_08_InventoryListGroupedByResourceAtCacheDate(self):
     """
-      Check that inventory optimisation is executed when querying past
-      amount list (there is a usable full inventory which is not the latest).
+      Check that optimisation is executed when grouping inventory list
+      by resource explicitely
     """
-    inventory = self.getInventoryList(node_uid=self.node_uid,
-                                      at_date=self.INVENTORY_DATE_3 - 1)
-    reference_inventory = [
-      {'date': self.INVENTORY_DATE_2,
-       'inventory': self.INVENTORY_QUANTITY_2,
-       'node_uid': self.node_uid},
-      {'date': self.INVENTORY_DATE_3 - 1,
-       'inventory': self.BASE_QUANTITY,
-       'node_uid': self.node_uid}
-    ]
-    self._checkInventoryList(inventory, reference_inventory)
+    # Fill cache
+    self.getInventoryList(node_uid=self.node_uid, to_date=self.NOW,
+      group_by_resource=1)
+    # We got results from cache + results from stock
+    self._checkInventoryList(
+      self.getInventoryList(node_uid=self.node_uid, at_date=self.CACHE_DATE,
+        group_by_resource=1),
+      [{
+        'inventory': self.INVENTORY_QUANTITY_2 + self.INVENTORY_QUANTITY_1,
+        'resource_uid': self.resource.getUid(),
+        'node_uid': self.node_uid,
+      }],
+    )
 
-  def test_08_InventoryListBeforeFullInventoryAfterPartialInventory(self):
+  def test_09_InventoryListGroupByResourceToCacheDate(self):
     """
-      Check that optimisation is not executed when querying past amount list
-      with no usable full inventory.
+      Check that optimisation is executed when grouping inventory list
+      by resource explicitely
     """
-    inventory = self.getInventoryList(node_uid=self.node_uid,
-                                      at_date=self.INVENTORY_DATE_2 - 1)
-    reference_inventory = [
-      {'date': self.INVENTORY_DATE_1 - 1,
-       'inventory': self.BASE_QUANTITY,
-       'node_uid': self.node_uid},
-      {'date': self.INVENTORY_DATE_1,
-       'inventory': self.ACTUAL_INVENTORY_QUANTITY_1,
-       'node_uid': self.node_uid},
-      {'date': self.INVENTORY_DATE_2 - 1,
-       'inventory': self.BASE_QUANTITY,
-       'node_uid': self.node_uid}
-    ]
-    self._checkInventoryList(inventory, reference_inventory)
+    self.getInventoryList(node_uid=self.node_uid, to_date=self.NOW, group_by_resource=1)
+    # We got only results from cache
+    inventory = 
+    reference_inventory = 
+    self._checkInventoryList(
+      self.getInventoryList(node_uid=self.node_uid, to_date=self.CACHE_DATE,
+        group_by_resource=1),
+      [{
+        'inventory': self.INVENTORY_QUANTITY_1,
+        'resource_uid': self.resource.getUid(),
+        'node_uid': self.node_uid,
+      }],
+    )
 
-  def test_09_InventoryListGroupedByResource(self):
-    """
-      Group inventory list by resource explicitely, used inventory is the
-      latest.
-    """
-    inventory = self.getInventoryList(node_uid=self.node_uid,
-                                      group_by_resource=1)
-    reference_inventory = [
-    {'inventory': self.INVENTORY_QUANTITY_3 + self.BASE_QUANTITY,
-     'resource_uid': self.resource.getUid(),
-     'node_uid': self.node_uid}
-    ]
-    self._checkInventoryList(inventory, reference_inventory)
-
-  def test_10_InventoryListGroupedByResourceBeforeLatestFullInventoryDate(self):
-    """
-      Group inventory list by resource explicitely, used inventory is not the
-      latest.
-    """
-    inventory = self.getInventoryList(node_uid=self.node_uid,
-                                      group_by_resource=1,
-                                      at_date=self.INVENTORY_DATE_3 - 1)
-    reference_inventory = [
-    {'inventory': self.INVENTORY_QUANTITY_2 + self.BASE_QUANTITY,
-     'resource_uid': self.resource.getUid(),
-     'node_uid': self.node_uid}
-    ]
-    self._checkInventoryList(inventory, reference_inventory)
-
-  def test_11_InventoryListAroundLatestInventoryDate(self):
-    """
-      Test getInventoryList with a min and a max date around latest full
-      inventory. A full inventory is used and is not the latest.
-    """
-    inventory = self.getInventoryList(node_uid=self.node_uid,
-                                      from_date=self.INVENTORY_DATE_3 - 1,
-                                      at_date=self.INVENTORY_DATE_3 + 1)
-    reference_inventory = [
-    {'inventory': self.BASE_QUANTITY,
-     'resource_uid': self.resource.getUid(),
-     'node_uid': self.node_uid,
-     'date': self.INVENTORY_DATE_3 - 1},
-    {'inventory': self.ACTUAL_INVENTORY_QUANTITY_3,
-     'resource_uid': self.resource.getUid(),
-     'node_uid': self.node_uid,
-     'date': self.INVENTORY_DATE_3},
-    {'inventory': self.BASE_QUANTITY,
-     'resource_uid': self.resource.getUid(),
-     'node_uid': self.node_uid,
-     'date': self.INVENTORY_DATE_3 + 1}
-    ]
-    self._checkInventoryList(inventory, reference_inventory)
-
-  def test_12_InventoryListWithOrderByDate(self):
+  def test_10_InventoryListWithOrderByDate(self):
     """
       Test order_by is preserved by optimisation on date column.
-      Also sort on total_quantity column because there are inventory lines
-      which are on the same date but with distinct quantities.
     """
-    inventory = self.getInventoryList(node_uid=self.node_uid,
-                                      from_date=self.INVENTORY_DATE_3 - 1,
-                                      at_date=self.INVENTORY_DATE_3 + 1,
-                                      sort_on=(('date', 'ASC'),
-                                               ('total_quantity', 'DESC')))
-    reference_inventory = [
-    {'inventory': self.BASE_QUANTITY,
-     'resource_uid': self.resource.getUid(),
-     'node_uid': self.node_uid,
-     'date': self.INVENTORY_DATE_3 - 1},
-    {'inventory': self.ACTUAL_INVENTORY_QUANTITY_3,
-     'resource_uid': self.resource.getUid(),
-     'node_uid': self.node_uid,
-     'date': self.INVENTORY_DATE_3},
-    {'inventory': self.BASE_QUANTITY,
-     'resource_uid': self.resource.getUid(),
-     'node_uid': self.node_uid,
-     'date': self.INVENTORY_DATE_3 + 1}
-    ]
-    self._checkInventoryList(inventory, reference_inventory,
-                             ordered_check=True)
-    inventory = self.getInventoryList(node_uid=self.node_uid,
-                                      from_date=self.INVENTORY_DATE_3 - 1,
-                                      at_date=self.INVENTORY_DATE_3 + 1,
-                                      sort_on=(('date', 'DESC'),
-                                               ('total_quantity', 'ASC')))
-    reference_inventory.reverse()
-    self._checkInventoryList(inventory, reference_inventory,
-                             ordered_check=True)
+    inventory_kw={
+      'node_uid': self.node_uid,
+      'to_date': self.NOW,
+    }
+    sort_on = (('date', 'ASC'), ('total_quantity', 'DESC'))
+    reversed_sort_on = (('date', 'DESC'), ('total_quantity', 'ASC'))
+    reference_inventory = [{
+      'inventory': self.INVENTORY_QUANTITY_1,
+      'resource_uid': self.resource.getUid(),
+      'node_uid': self.node_uid,
+      'date': self.INVENTORY_DATE_1,
+    }, {
+      'inventory': self.INVENTORY_QUANTITY_2,
+      'resource_uid': self.resource.getUid(),
+      'node_uid': self.node_uid,
+      'date': self.INVENTORY_DATE_2
+    }, {
+      'inventory': self.INVENTORY_QUANTITY_3,
+      'resource_uid': self.resource.getUid(),
+      'node_uid': self.node_uid,
+      'date': self.INVENTORY_DATE_3,
+    }]
+    # Fill cache
+    self.getInventoryList(sort_on=sort_on, **inventory_kw)
+    # Check it in fist order
+    self._checkInventoryList(
+      self.getInventoryList(sort_on=sort_on, **inventory_kw),
+      reference_inventory,
+      ordered_check=True,
+    )
+    # Check it in reverse order
+    self._checkInventoryList(
+      self.getInventoryList(sort_on=reversed_sort_on, **inventory_kw),
+      reversed(reference_inventory),
+      ordered_check=True,
+    )
 
-  def test_13_InventoryAfterModificationInPast(self):
+  def test_11_InventoryWithFromDate(self):
     """
-    Test inventory after adding a new movement in past and reindex all inventory
+    Test that getInventory called with from date does not generate cache entry
     """
-    movement = self._makeMovement(quantity=self.BASE_QUANTITY*2,
-      start_date=self.INVENTORY_DATE_3 - 2,
-      simulation_state='delivered')
-    # reindex inventory module, although we modified table by hand
-    # everything must be consistent after reindexation
-    inventory_module = self.getPortal().getDefaultModule(portal_type='Inventory')
-    inventory_module.recursiveReindexObject()
+    inventory_kw = {
+      'node_uid': self.node_uid,
+      'to_date': self.NOW,
+      'from_date': self.NOW - self.CACHE_LAG - 10,
+    }
+    # Fill cache and check we got all results from stock table
+    self.assertInventoryEquals(
+      self.getInventory(**inventory_kw) * 2,
+      inventory_kw,
+    )
+
+  def test_12_CheckCacheFlush(self):
+    """
+    Test the cache is flushed when indexing a movement into stock
+    """
+    inventory_kw = {
+      'node_uid': self.node_uid,
+      'to_date': self.NOW,
+    }
+    # Fill cache and make stock inconsistent
+    value = self.getInventory(**inventory_kw)
+    self.doubleStockValue()
+    # Create a movement after CACHE DATE
+    # Cache is cleared for all entry > movement date
+    # as at a cache date D, it contains results from stock
+    # for all line < D
+    INVENTORY_QUANTITY_4 = 5000
+    INVENTORY_DATE_4 = self.CACHE_DATE
+    movement = self._makeMovement(
+      quantity=INVENTORY_QUANTITY_4,
+      start_date=INVENTORY_DATE_4,
+      simulation_state='delivered',
+    )
     transaction.commit()
     self.tic()
-    inventory_kw={'node_uid': self.node_uid,
-                  'at_date': self.INVENTORY_DATE_3}
-    value=self.INVENTORY_QUANTITY_3
-    # use optimisation
-    self.assertEquals(value, self.getInventory(**inventory_kw))
-    # without optimisation
-    self.assertEquals(value,
-                      self.getInventory(optimisation__=False,
-                                        **inventory_kw))
-
-  def test_14_TwoInventoryWithSameDateAndResourceAndNode(self):
-    """
-    It makes no sense to validate two inventories with same date,
-    same resource, and same node. The calculation of inventories
-    will not work in such case. So here we test that a constraint
-    does not allow such things
-    """
-    portal = self.getPortal()
-    self._addPropertySheet('Inventory', 'InventoryConstraint')
-    try:
-      inventory_module = portal.getDefaultModule(portal_type='Inventory')
-      inventory = inventory_module.newContent(portal_type='Inventory')
-      date = self.DUPLICATE_INVENTORY_DATE
-      inventory.edit(destination_value=self.node,
-                     destination_section_value=self.section,
-                     start_date=date)
-      inventory_line = inventory.newContent(
-          resource_value = self.resource,
-          quantity = 1)
-      self.workflow_tool = portal.portal_workflow
-      workflow_id = 'inventory_workflow'
-      transition_id = 'deliver_action'
-      workflow_id= 'inventory_workflow'
-      self.workflow_tool.doActionFor(inventory, transition_id,
-              wf_id=workflow_id)
-      self.assertEquals('delivered', inventory.getSimulationState())
-      transaction.commit()
-      self.tic()
-      
-      # We should detect the previous inventory and fails
-      new_inventory = inventory.Base_createCloneDocument(batch_mode=1)
-      self.assertRaises(ValidationFailed, self.workflow_tool.doActionFor, 
-          new_inventory, transition_id, wf_id=workflow_id)
-      workflow_history = self.workflow_tool.getInfoFor(ob=new_inventory, 
-          name='history', wf_id=workflow_id)
-      workflow_error_message = str(workflow_history[-1]['error_message'])
-      self.assertTrue(len(workflow_error_message))
-      self.assertTrue(len([x for x in workflow_error_message \
-          if x.find('There is already an inventory')]))
-
-      # Add a case in order to check a bug when the other inventory at the
-      # same date does not change stock values
-      new_inventory = inventory.Base_createCloneDocument(batch_mode=1)
-      new_inventory.setStartDate(self.DUPLICATE_INVENTORY_DATE + 1)
-      self.workflow_tool.doActionFor(new_inventory, transition_id,
-              wf_id=workflow_id)
-      self.assertEquals('delivered', new_inventory.getSimulationState())
-      transaction.commit()
-      self.tic()
-
-      new_inventory = new_inventory.Base_createCloneDocument(batch_mode=1)
-      self.assertRaises(ValidationFailed, self.workflow_tool.doActionFor, 
-          new_inventory, transition_id, wf_id=workflow_id)
-      workflow_history = self.workflow_tool.getInfoFor(ob=new_inventory, 
-          name='history', wf_id=workflow_id)
-      workflow_error_message = str(workflow_history[-1]['error_message'])
-      self.assertTrue(len(workflow_error_message))
-      self.assertTrue(len([x for x in workflow_error_message \
-          if x.find('There is already an inventory')]))
-    finally:
-      # remove all property sheets we added to type informations
-      ttool = self.getTypesTool()
-      for ti_name, psheet_list in self._added_property_sheets.iteritems():
-        ti = ttool.getTypeInfo(ti_name)
-        property_sheet_set = set(ti.getTypePropertySheetList())
-        property_sheet_set.difference_update(psheet_list)
-        ti._setTypePropertySheetList(list(property_sheet_set))
-      transaction.commit()
-      _aq_reset()
-
-  def test_15_InventoryAfterModificationInFuture(self):
-    """
-    Test inventory after adding a new movement in future 
-    """
-    movement = self._makeMovement(quantity=self.BASE_QUANTITY*2,
-      start_date=self.INVENTORY_DATE_3 + 2,
-      simulation_state='delivered')
+    # Optimisation must still be used
+    self.assertEquals(
+      value + INVENTORY_QUANTITY_4,
+      self.getInventory(**inventory_kw),
+    )
+    # Edit start date so that cache table is cleared
+    movement.edit(start_date=self.LAST_CACHED_MOVEMENT_DATE)
     transaction.commit()
     self.tic()
-
-    def getCurrentInventoryPathList(resource, **kw):
-      # the brain is not a zsqlbrain instance here, so it does not
-      # have getPath().
-      return [x.path for x in resource.getCurrentInventoryList(**kw)]
-    
-    # use optimisation
-    self.assertEquals(True,movement.getPath() in 
-                  [x.path for x in self.resource.getInventoryList(
-                                         mirror_uid=self.mirror_node.getUid())])
-
-    # without optimisation
-    self.assertEquals(True,movement.getPath() in 
-                  [x.path for x in self.resource.getInventoryList(
-                                         optimisation__=False,
-                                         mirror_uid=self.mirror_node.getUid())])
-
+    self.assertEquals(
+      value * 2 + INVENTORY_QUANTITY_4,
+      self.getInventory(**inventory_kw),
+    )
+    self.doubleStockValue()
+    # Cache hit again
+    self.assertEquals(
+      value * 2 + INVENTORY_QUANTITY_4,
+      self.getInventory(**inventory_kw),
+    )
+    # Delete movement, so it gets unindexed
+    self.folder.manage_delObjects(ids=[movement.getId(), ])
+    transaction.commit()
+    self.tic()
+    self.assertEquals(
+      value * 4,
+      self.getInventory(**inventory_kw),
+    )
+    self.doubleStockValue()
+    # Cache hit again
+    self.assertEquals(
+      value * 4,
+      self.getInventory(**inventory_kw),
+    )
 
 class BaseTestUnitConversion(InventoryAPITestCase):
   QUANTITY_UNIT_DICT = {}
@@ -3123,7 +3032,7 @@ def test_suite():
   suite.addTest(unittest.makeSuite(TestInventoryStat))
   suite.addTest(unittest.makeSuite(TestNextNegativeInventoryDate))
   suite.addTest(unittest.makeSuite(TestTrackingList))
-  suite.addTest(unittest.makeSuite(TestInventoryDocument))
+  suite.addTest(unittest.makeSuite(TestInventoryCacheTable))
   suite.addTest(unittest.makeSuite(TestUnitConversion))
   suite.addTest(unittest.makeSuite(TestUnitConversionDefinition))
   suite.addTest(unittest.makeSuite(TestUnitConversionBackwardCompatibility))
