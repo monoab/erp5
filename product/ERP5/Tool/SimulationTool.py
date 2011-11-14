@@ -55,6 +55,7 @@ from App.Extensions import getBrain
 from hashlib import md5
 from warnings import warn
 from cPickle import loads, dumps
+from copy import deepcopy
 
 MYSQL_MIN_DATETIME_RESOLUTION = 1/86400.
 
@@ -1280,7 +1281,8 @@ class SimulationTool(BaseTool):
       }
       # Get cached data
       if optimisation__ and 'from_date' not in kw and \
-          ('at_date' in kw ^ 'to_date' in kw):
+          (('at_date' in kw) ^ ('to_date' in kw)) and \
+          'transformed_resource' not in kw:
         # Here is the different kind of date
         # from_date : >=
         # to_date   : <
@@ -1300,14 +1302,17 @@ class SimulationTool(BaseTool):
           **base_inventory_kw)
         if src__:
           sql_source_list.extend(cached_result)
-          # Now must generate query for date diff
-          kw['to_date'] = to_date
-          kw['from_date'] = cached_date
+        # Now must generate query for date diff
+        kw['to_date'] = to_date
+        kw['from_date'] = cached_date
       else:
         cached_result = []
       sql_kw, new_kw = self._generateKeywordDict(**kw)
+      # Copy kw content as _generateSQLKeywordDictFromKeywordDict
+      # remove some values from it
+      new_kw_copy = deepcopy(new_kw)
       stock_sql_kw = self._generateSQLKeywordDictFromKeywordDict(
-        table=default_stock_table, sql_kw=sql_kw, new_kw=new_kw)
+        table=default_stock_table, sql_kw=sql_kw, new_kw=new_kw_copy)
       stock_sql_kw.update(base_inventory_kw)
       delta_result = self.Resource_zGetInventoryList(
         **stock_sql_kw)
@@ -1315,7 +1320,10 @@ class SimulationTool(BaseTool):
         sql_source_list.append(delta_result)
         result = ';\n-- NEXT QUERY\n'.join(sql_source_list)
       else:
-        result = self._addBrainResults(delta_result, cached_result, new_kw)
+        if cached_result:
+            result = self._addBrainResults(delta_result, cached_result, new_kw)
+        else:
+            result = delta_result
       return result
 
     def getInventoryCacheLag(self):
@@ -1343,7 +1351,8 @@ class SimulationTool(BaseTool):
       Resource_zGetInventoryList = self.Resource_zGetInventoryList
       # Generate the SQL source without date parameter
       # This will be the cache key
-      no_date_sql_kw, no_date_new_kw = self._generateKeywordDict(**sql_kw)
+      no_date_kw = deepcopy(sql_kw)
+      no_date_sql_kw, no_date_new_kw = self._generateKeywordDict(**no_date_kw)
       no_date_stock_sql_kw = self._generateSQLKeywordDictFromKeywordDict(
         table=stock_table_id, sql_kw=no_date_sql_kw,
         new_kw=no_date_new_kw)
@@ -1378,7 +1387,8 @@ class SimulationTool(BaseTool):
       else:
         cached_result = []
       cache_lag = self.getInventoryCacheLag()
-      if cached_sql_result and to_date - DateTime(cached_sql_result[0].date) >= cache_lag:
+      if cached_sql_result and to_date - DateTime(cached_sql_result[0].date) < cache_lag:
+        cached_date = DateTime(cached_sql_result[0].date)
         result = cached_result
       else:
         # Cache miss, or hit with old data: store a new entry in cache.
@@ -1389,10 +1399,10 @@ class SimulationTool(BaseTool):
         # which we cannot tell here).
         # So store it at half the cache_lag before to_date.
         cached_date = to_date - cache_lag / 2
-        new_cache_kw = sql_kw.copy()
+        new_cache_kw = deepcopy(sql_kw)
         if cached_result:
           # We can use cached result to generate new cache result
-          new_cache_kw['from_date'] = cached_date
+          new_cache_kw['from_date'] = DateTime(cached_sql_result[0].date)
         sql_kw, new_kw = self._generateKeywordDict(
           to_date=cached_date,
           **new_cache_kw)
@@ -1427,19 +1437,32 @@ class SimulationTool(BaseTool):
       Build a Results which is the addition of two other result
       """
       # This part defined key to group lines from different Results
-      if 'column_group_by' in new_kw:
-        group_by_id_list = []
-        group_by_id_list_append = group_by_id_list.append
-        for group_by_id in new_kw['column_group_by']:
-          if group_by_id == 'uid':
-            group_by_id_list_append('stock_uid')
-          else:
+      group_by_id_list = []
+      group_by_id_list_append = group_by_id_list.append
+
+      for group_by_id in new_kw.get('column_group_by', []):
+        if group_by_id == 'uid':
+          group_by_id_list_append('stock_uid')
+        else:
+          group_by_id_list_append(group_by_id)
+      # Add related key group by
+      if 'select_list' in new_kw.get("related_key_dict_passthrough", []):
+        for group_by_id in new_kw["related_key_dict_passthrough"]['group_by']:
+          if group_by_id in new_kw["related_key_dict_passthrough"]["select_list"]:
             group_by_id_list_append(group_by_id)
+          else:
+            # XXX-Aurel : to review & change, must prevent coming here before
+            raise ValueError, "Impossible to group by %s" %(group_by_id)
+      elif "group_by" in new_kw.get("related_key_dict_passthrough", []):
+        raise ValueError, "Impossible to group by %s" %(new_kw["related_key_dict_passthrough"]['group_by'],)
+
+      if len(group_by_id_list):
         def getInventoryListKey(line):
           """
           Generate a key based on values used in SQL group_by
           """
           return tuple([line[x] for x in group_by_id_list])
+
       else:
         def getInventoryListKey(line):
           """
@@ -1447,8 +1470,8 @@ class SimulationTool(BaseTool):
           """
           return "dummy"
       result_column_id_dict = {
-        'inventory': None
-        'total_quantity': None
+        'inventory': None,
+        'total_quantity': None,
         'total_price': None
       }
       def addLineValues(line_a=None, line_b=None):
@@ -1522,7 +1545,7 @@ class SimulationTool(BaseTool):
               raise Exception('Impossible to sort result since columns sort '
                 'happens on are not available in result: %r' % (key, ))
             if result:
-              if sort_direction.upper().startswith('A'):
+              if not sort_direction.upper().startswith('A'):
                 # Default sort is ascending, if a sort is given and
                 # it does not start with an 'A' then reverse sort.
                 # Tedious syntax checking is MySQL's job, and

@@ -892,7 +892,7 @@ class TestInventoryList(InventoryAPITestCase):
     self._makeMovement(quantity=7, use='use2')
     self._makeMovement(quantity=4, use='use2')
     # note that grouping by related key only make sense if you group by strict
-    # memebership related keys
+    # membership related keys
     inventory_list = getInventoryList(node_uid=(self.node.getUid(),
                                                 self.other_node.getUid()),
                                       group_by=('strict_use_uid', ))
@@ -2283,17 +2283,23 @@ class TestInventoryCacheTable(InventoryAPITestCase):
       # Leads to rasing exception instead of calling self.assert[...] method.
       if not success:
         if ordered_check:
-          raise AssertionError, 'Line %r do not match %r' % \
+          raise AssertionError, 'Line %r\ndo not match\n %r' % \
                                 (inventory_list[inventory_position],
                                  criterion_dict)
         else:
-          raise AssertionError, 'No line in %r match %r' % \
+          raise AssertionError, 'No line in %r\n match\n %r' % \
                                 (inventory_list, criterion_dict)
 
-  def _fillCache(self, method):
-    result = method(node_uid=self.node_uid, to_date=self.NOW)
-    self.assertEqual(value, sum(self.INVENTORY_QUANTITY_1,
-      self.INVENTORY_QUANTITY_2, self.INVENTORY_QUANTITY_3))
+  def _fillCache(self, inventory_list=False):
+    if inventory_list:
+      result_list = self.getInventoryList(node_uid=self.node_uid, to_date=self.NOW)
+      result = 0
+      for line in result_list:
+        result += line.quantity
+    else:
+      result = self.getInventory(node_uid=self.node_uid, to_date=self.NOW)
+    self.assertEqual(result, self.INVENTORY_QUANTITY_1 + \
+      self.INVENTORY_QUANTITY_2 + self.INVENTORY_QUANTITY_3)
     return result
 
   def doubleStockValue(self):
@@ -2328,7 +2334,7 @@ class TestInventoryCacheTable(InventoryAPITestCase):
       amount
     """
     self.assertInventoryEquals(
-      self._fillCache(self.getInventory),
+      self._fillCache(),
       inventory_kw={
         'node_uid': self.node_uid,
         'to_date': self.NOW,
@@ -2340,7 +2346,7 @@ class TestInventoryCacheTable(InventoryAPITestCase):
       Check that optimisation is executed when querying an amount
       at the exact time of the cache of result
     """
-    self._fillCache(self.getInventory)
+    self._fillCache()
     # We got results from cache + results from stock
     self.assertInventoryEquals(
       self.INVENTORY_QUANTITY_2 + self.INVENTORY_QUANTITY_1,
@@ -2355,7 +2361,7 @@ class TestInventoryCacheTable(InventoryAPITestCase):
       Check that optimisation is executed when querying an amount
       that will only take into account cache data.
     """
-    self._fillCache(self.getInventory)
+    self._fillCache()
     # We got only results from cache
     self.assertInventoryEquals(
       self.INVENTORY_QUANTITY_1,
@@ -2370,7 +2376,7 @@ class TestInventoryCacheTable(InventoryAPITestCase):
       Check that optimisation is executed when querying current
       amount list
     """
-    self._fillCache(self.getInventoryList)
+    self._fillCache(True)
     # Check we got all results
     self._checkInventoryList(
       self.getInventoryList(node_uid=self.node_uid, to_date=self.NOW),
@@ -2394,7 +2400,7 @@ class TestInventoryCacheTable(InventoryAPITestCase):
       Check that optimisation is executed when querying an amount list
       at the exact time of the cache of result
     """
-    self._fillCache(self.getInventoryList)
+    self._fillCache(True)
     # We got results from cache + results from stock
     self._checkInventoryList(
       self.getInventoryList(node_uid=self.node_uid, at_date=self.CACHE_DATE),
@@ -2414,7 +2420,7 @@ class TestInventoryCacheTable(InventoryAPITestCase):
       Check that optimisation is executed when querying an amount list
       that will only take into account cache data.
     """
-    self._fillCache(self.getInventoryList)
+    self._fillCache(True)
     # We got only results from cache
     self._checkInventoryList(
       self.getInventoryList(node_uid=self.node_uid, to_date=self.CACHE_DATE),
@@ -2438,7 +2444,6 @@ class TestInventoryCacheTable(InventoryAPITestCase):
     # Fill cache
     self.getInventoryList(**inventory_kw)
     # Check we got all results
-    reference_inventory = 
     self._checkInventoryList(
       self.getInventoryList(**inventory_kw),
       [{
@@ -2475,8 +2480,6 @@ class TestInventoryCacheTable(InventoryAPITestCase):
     """
     self.getInventoryList(node_uid=self.node_uid, to_date=self.NOW, group_by_resource=1)
     # We got only results from cache
-    inventory = 
-    reference_inventory = 
     self._checkInventoryList(
       self.getInventoryList(node_uid=self.node_uid, to_date=self.CACHE_DATE,
         group_by_resource=1),
@@ -2522,9 +2525,10 @@ class TestInventoryCacheTable(InventoryAPITestCase):
       ordered_check=True,
     )
     # Check it in reverse order
+    reference_inventory.reverse()
     self._checkInventoryList(
       self.getInventoryList(sort_on=reversed_sort_on, **inventory_kw),
-      reversed(reference_inventory),
+      reference_inventory,
       ordered_check=True,
     )
 
@@ -2537,11 +2541,16 @@ class TestInventoryCacheTable(InventoryAPITestCase):
       'to_date': self.NOW,
       'from_date': self.NOW - self.CACHE_LAG - 10,
     }
-    # Fill cache and check we got all results from stock table
-    self.assertInventoryEquals(
-      self.getInventory(**inventory_kw) * 2,
-      inventory_kw,
-    )
+    # Double stock value and check that we got same result
+    # with and without optimisation
+    value = self.INVENTORY_QUANTITY_3 + self.INVENTORY_QUANTITY_2 + \
+            2 * self.INVENTORY_QUANTITY_1
+    self.doubleStockValue()
+    self.assertEquals(value, self.getInventory(**inventory_kw))
+    self.assertEquals(value,
+                         self.getInventory(optimisation__=False,
+                                           **inventory_kw))
+
 
   def test_12_CheckCacheFlush(self):
     """
@@ -2577,13 +2586,13 @@ class TestInventoryCacheTable(InventoryAPITestCase):
     transaction.commit()
     self.tic()
     self.assertEquals(
-      value * 2 + INVENTORY_QUANTITY_4,
+      value + INVENTORY_QUANTITY_4 + self.INVENTORY_QUANTITY_1,
       self.getInventory(**inventory_kw),
     )
     self.doubleStockValue()
     # Cache hit again
     self.assertEquals(
-      value * 2 + INVENTORY_QUANTITY_4,
+      value + INVENTORY_QUANTITY_4 + self.INVENTORY_QUANTITY_1,
       self.getInventory(**inventory_kw),
     )
     # Delete movement, so it gets unindexed
@@ -2591,15 +2600,46 @@ class TestInventoryCacheTable(InventoryAPITestCase):
     transaction.commit()
     self.tic()
     self.assertEquals(
-      value * 4,
+      value + 3 * self.INVENTORY_QUANTITY_1,
       self.getInventory(**inventory_kw),
     )
     self.doubleStockValue()
     # Cache hit again
     self.assertEquals(
-      value * 4,
+      value + 3 * self.INVENTORY_QUANTITY_1,
       self.getInventory(**inventory_kw),
     )
+
+  def test_13_CacheCreatedFromCache(self):
+    """
+    Test that a new cache entry is created from previous cache entry if it exists
+    """
+    # Create an old movement
+    INVENTORY_QUANTITY_4 = 100
+    INVENTORY_DATE_4 = self.NOW - 3 * self.CACHE_LAG
+    movement = self._makeMovement(quantity=INVENTORY_QUANTITY_4,
+                                  start_date=INVENTORY_DATE_4,
+                                  simulation_state='delivered')
+    # Get inventory in past so that cache is filled
+    inventory_kw={'node_uid': self.node_uid,
+                  "to_date" : self.NOW - 2 * self.CACHE_LAG,}
+    value = self.getInventory(**inventory_kw)
+    self.assertInventoryEquals(value, inventory_kw)
+
+    # Now compute wanted value manually as we screwed the stock table
+    # As we double every movement < CACHE_LAG/2, inventory_1 is double
+    # like inventory_4, but inventory_4 must be retrieved from cache with
+    # its initial value
+    wanted_value = 2 * self.INVENTORY_QUANTITY_1 + self.INVENTORY_QUANTITY_2 + \
+            self.INVENTORY_QUANTITY_3 + INVENTORY_QUANTITY_4
+    inventory_kw={'node_uid': self.node_uid,
+                  "to_date" : self.NOW,}
+    value = self.getInventory(**inventory_kw)
+    self.assertEqual(value, wanted_value)
+    # Make sure it has filled a new cache
+    self.assertInventoryEquals(wanted_value, inventory_kw)
+
+
 
 class BaseTestUnitConversion(InventoryAPITestCase):
   QUANTITY_UNIT_DICT = {}
