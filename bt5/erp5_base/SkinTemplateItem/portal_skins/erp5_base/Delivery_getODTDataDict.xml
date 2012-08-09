@@ -50,7 +50,9 @@
         </item>
         <item>
             <key> <string>_body</string> </key>
-            <value> <string>translateString = context.Base_translateString\n
+            <value> <string>from Products.ERP5Type.Log import log\n
+\n
+translateString = context.Base_translateString\n
 request = context.REQUEST\n
 \n
 # display only title line instead of description\n
@@ -131,10 +133,19 @@ def getTaxLineList(order):\n
   tax_line_list.sort(key=lambda line:line.getTitle())\n
   return tax_line_list\n
 \n
+class Vat:\n
+    name=""\n
+    price=0.0\n
+    def __init__(self, name=None, value=None):\n
+        self.name = name\n
+        self.price = value\n
 \n
 line_list = []\n
+line_no_vat=[]\n
 total_price = 0.0\n
 total_vat = 0.0\n
+total_vat_price=0.0\n
+vat_total_list = []\n
 \n
 def unicodeDict(d):\n
   for k, v in d.items():\n
@@ -187,6 +198,7 @@ for line in getSubLineList(context):\n
       \'reference\': line.getResource() is not None\\\n
                       and line.getResourceValue().getReference() or \'\',\n
       \'description\': desc,\n
+      \'use_type\':line.getResourceValue().getUse(),\n
       \'total_quantity\': line.getTotalQuantity() or \'\',\n
       \'quantity_unit\': line.getQuantityUnitTranslatedTitle() or (\n
         line.getResource() and line.getResourceValue().getQuantityUnitTranslatedTitle()) or \'\',\n
@@ -195,9 +207,14 @@ for line in getSubLineList(context):\n
       \'total_price\': line.getTotalPrice() or \'\',\n
       \'specialise_title\' : line.getProperty(\'specialise_title\', \'\'),\n
     }\n
-    total_price += line.getTotalPrice() or 0.0\n
+    vat = \'trade/tax\'\n
+    if line_dict[\'use_type\']==vat :\n
+      vat_total_list.append( Vat(desc[0],line.getTotalPrice()))\n
+      total_vat_price+=line.getTotalPrice() or 0.0\n
+    else:\n
+      total_price += line.getTotalPrice() or 0.0\n
+      line_no_vat.append(unicodeDict(line_dict.copy()))\n
   line_list.append(unicodeDict(line_dict.copy()))\n
-\n
 inch_cm_ratio = 2.54 / 100.0\n
 \n
 class EmptyOrganisation:\n
@@ -398,10 +415,13 @@ data_dict = {\n
   \'incoterm\': context.getIncoterm() and context.getIncotermValue().getCodification() or \'\',\n
 \n
   \'total_price_novat\': total_price,\n
-  \'vat_list\': getTaxLineList(context),\n
+  \'vat_list\': total_vat,\n
+  \'vat_total_price\':total_vat_price,\n
+  \'vat_total_list\':vat_total_list,\n
   \'description\': getFieldAsLineList(context.getDescription()),\n
   \'specialise_title\': context.getProperty(\'specialise_title\',\'\'),\n
 \n
+  \'line_no_vat\':line_no_vat,\n
   \'line_list\': line_list,\n
 }\n
 \n
