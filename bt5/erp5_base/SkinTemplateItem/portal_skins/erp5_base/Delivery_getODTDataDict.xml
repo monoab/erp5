@@ -133,12 +133,15 @@ def getTaxLineList(order):\n
   tax_line_list.sort(key=lambda line:line.getTitle())\n
   return tax_line_list\n
 \n
-class Vat:\n
-    name=""\n
-    price=0.0\n
-    def __init__(self, name=None, value=None):\n
-        self.name = name\n
-        self.price = value\n
+vat_dict={\n
+  \'name\':[],\n
+  \'price\':[],\n
+  \'number\':[],\n
+}\n
+vatnames=[]\n
+vatprices=[]\n
+numbers=[]\n
+number=0\n
 \n
 line_list = []\n
 line_no_vat=[]\n
@@ -209,7 +212,13 @@ for line in getSubLineList(context):\n
     }\n
     vat = \'trade/tax\'\n
     if line_dict[\'use_type\']==vat :\n
-      vat_total_list.append( Vat(desc[0],line.getTotalPrice()))\n
+      vatnames.append(desc[0])\n
+      vatprices.append(line.getTotalPrice())\n
+      numbers.append(number)\n
+      vat_dict[\'name\']=vatnames\n
+      vat_dict[\'price\']=vatprices\n
+      vat_dict[\'number\']=numbers\n
+      number=number+1\n
       total_vat_price+=line.getTotalPrice() or 0.0\n
     else:\n
       total_price += line.getTotalPrice() or 0.0\n
@@ -417,7 +426,7 @@ data_dict = {\n
   \'total_price_novat\': total_price,\n
   \'vat_list\': total_vat,\n
   \'vat_total_price\':total_vat_price,\n
-  \'vat_total_list\':vat_total_list,\n
+  \'vat_total_list\':vat_dict,\n
   \'description\': getFieldAsLineList(context.getDescription()),\n
   \'specialise_title\': context.getProperty(\'specialise_title\',\'\'),\n
 \n
