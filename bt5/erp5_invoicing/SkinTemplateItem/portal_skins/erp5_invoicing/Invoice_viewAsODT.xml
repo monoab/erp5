@@ -483,12 +483,14 @@ AAA=</string> </value>
             </table:table-cell>\n
           </table:table-row>\n
         </table:table-header-rows>\n
-        <table:table-row table:style-name=\'Tableau1.3\' tal:repeat=\'line_dict python:data_dict["line_list"]\'>\n
+        <div tal:define="global list_number python: 0"/>\n
+        <table:table-row table:style-name=\'Tableau1.3\' tal:repeat=\'line_dict python:data_dict["line_no_vat"]\'>\n
           <div tal:omit-tag=\'\' tal:define=\'style_name python:line_dict["style_name"];\n
                left_style_name python:line_dict["left_style_name"];\n
                right_style_name python:line_dict["right_style_name"]\'>\n
             <table:table-cell table:style-name=\'Tableau1.A3\' office:value-type=\'string\'>\n
-              <text:p text:style-name=\'Table_20_Contents\' tal:content=\'python:line_dict["index"]\' tal:attributes=\'text:style-name left_style_name\'>1</text:p>\n
+              <div tal:define="global list_number python: list_number + 1"/> \n
+              <text:p text:style-name=\'Table_20_Contents\'  tal:content= \'list_number\' tal:attributes=\'text:style-name left_style_name\'>100</text:p>\n
             </table:table-cell>\n
             <table:table-cell table:style-name=\'Tableau1.A3\' office:value-type=\'string\'>\n
               <text:p text:style-name=\'Table_20_Contents\'\n
@@ -596,40 +598,30 @@ AAA=</string> </value>
                   <text:p text:style-name=\'Table_20_Contents_20_Right\' tal:content=\'python: price_renderer(data_dict["total_price_novat"])\'>800.000,00</text:p>\n
                 </table:table-cell>\n
               </table:table-row>\n
-              <table:table-row table:style-name=\'Tableau3.3\'>\n
-                <table:table-cell table:style-name=\'Tableau3.A2\' office:value-type=\'string\'>\n
-                  <text:p text:style-name=\'Table_20_Contents\'/>\n
-                </table:table-cell>\n
-                <table:table-cell table:style-name=\'Tableau3.A2\' office:value-type=\'string\'>\n
-                  <text:p text:style-name=\'Table_20_Contents\'/>\n
-                </table:table-cell>\n
-                <table:table-cell table:style-name=\'Tableau3.A1\' office:value-type=\'string\'>\n
-                  <text:p text:style-name=\'Table_20_Contents\'/>\n
-                </table:table-cell>\n
-                <tal:block tal:define="global total_vat_list python: []">\n
-                  <table:table-cell table:style-name=\'Tableau3.D3\'\n
+              <tal:block tal:repeat="vatnumber python: data_dict[\'vat_total_list\'][\'number\']">\n
+                <table:table-row table:style-name=\'Tableau3.2\'>\n
+                  <table:table-cell table:style-name=\'Tableau3.A2\' office:value-type=\'string\'>\n
+                    <text:p text:style-name=\'Table_20_Contents\'/>\n
+                  </table:table-cell>\n
+                  <table:table-cell table:style-name=\'Tableau3.A2\' office:value-type=\'string\'>\n
+                    <text:p text:style-name=\'Table_20_Contents\'/>\n
+                  </table:table-cell>\n
+                  <table:table-cell table:style-name=\'Tableau3.A1\' office:value-type=\'string\'>\n
+                    <text:p text:style-name=\'Table_20_Contents\'/>\n
+                  </table:table-cell>\n
+                \n
+                  <tal:block tal:define="global ">\n
+                    <table:table-cell table:style-name=\'Tableau3.D3\'\n
                                     office:value-type=\'string\'>\n
-                    <tal:block tal:repeat="vat python: data_dict[\'vat_list\']">\n
-                      <text:p text:style-name=\'Table_20_Heading\'><span\n
-                          tal:replace=\'vat/getResourceTitle\'/>:</text:p>\n
-                    </tal:block>\n
-                    <text:p text:style-name=\'Table_20_Heading\'\n
-                            tal:define=\'orig_string string:TAX; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'><span tal:replace="python: \'Total %s\' % (translated_message)"/>:</text:p>\n
-                  </table:table-cell>\n
-                  <table:table-cell table:style-name=\'Tableau3.E3\'\n
-                                    office:value-type=\'float\'\n
-                                    tal:attributes="office:value python: sum(total_vat_list)">\n
-                    <tal:block tal:repeat="vat python: data_dict[\'vat_list\']">\n
-                      <text:p tal:define="vat_price python: vat.getTotalPrice();\n
-                                          dummy python: total_vat_list.append(vat_price)"\n
-                              text:style-name=\'Table_20_Contents_20_Right\'\n
-                              tal:content="python: price_renderer(vat_price)">2000</text:p>\n
-                    </tal:block>\n
-                    <text:p text:style-name=\'Table_20_Contents_20_Right\'\n
-                            tal:content="python: price_renderer(sum(total_vat_list))">2000</text:p>\n
-                  </table:table-cell>\n
-                </tal:block>\n
-              </table:table-row>\n
+                        <text:p text:style-name=\'Table_20_Heading\' tal:content="python: data_dict[\'vat_total_list\'][\'name\'][vatnumber]+\' :\'">:</text:p>\n
+                    </table:table-cell>\n
+                    <table:table-cell table:style-name=\'Tableau3.E3\'\n
+                                    office:value-type=\'float\'>\n
+                        <text:p text:style-name=\'Table_20_Heading\' tal:content="python: data_dict[\'vat_total_list\'][\'price\'][vatnumber]">:</text:p>\n
+                    </table:table-cell>\n
+                  </tal:block>\n
+                </table:table-row>\n
+              </tal:block>\n
               <table:table-row table:style-name=\'Tableau3.2\'>\n
                 <table:table-cell table:style-name=\'Tableau3.A2\' office:value-type=\'string\'>\n
                   <text:p text:style-name=\'Table_20_Contents\'/>\n
@@ -641,13 +633,13 @@ AAA=</string> </value>
                   <text:p text:style-name=\'Table_20_Contents\'/>\n
                 </table:table-cell>\n
                 <table:table-cell table:style-name=\'Tableau3.D3\' office:value-type=\'string\' tal:define=\'orig_string string:Total Including VAT; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
-                  <text:p text:style-name=\'Table_20_Heading\'><span tal:replace=\'orig_message\'/>:</text:p>\n
+                  <text:p text:style-name=\'Table_20_Heading\'><span tal:replace=\'orig_message\'/> :</text:p>\n
                   <text:p text:style-name=\'Table_20_Heading\' tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/>:</text:p>\n
                 </table:table-cell>\n
-                <table:table-cell table:style-name=\'Tableau3.E3\' office:value-type=\'float\' tal:attributes="office:value python:data_dict[\'total_price_novat\'] + sum(total_vat_list)">\n
+                <table:table-cell table:style-name=\'Tableau3.E3\' office:value-type=\'float\' tal:attributes="office:value python:data_dict[\'total_price_novat\'] ">\n
                   <!-- TODO: use getTotalNetPrice after supporting discount ? -->\n
                   <text:p text:style-name=\'Table_20_Contents_20_Right\'\n
-                          tal:content=\'python: price_renderer(data_dict["total_price_novat"] + sum(total_vat_list))\'>12345</text:p>\n
+                          tal:content=\'python: price_renderer(data_dict["total_price_novat"]+data_dict["vat_total_price"])\'>12345</text:p>\n
                 </table:table-cell>\n
               </table:table-row>\n
 \n
@@ -739,8 +731,7 @@ AAA=</string> </value>
       <text:p text:style-name=\'P4\'/>\n
     </office:text>\n
   </office:body>\n
-</office:document-content>\n
-
+</office:document-content>
 
 ]]></unicode> </value>
         </item>
@@ -778,7 +769,7 @@ AAA=</string> </value>
         </item>
         <item>
             <key> <string>title</string> </key>
-            <value> <string></string> </value>
+            <value> <unicode></unicode> </value>
         </item>
       </dictionary>
     </pickle>
