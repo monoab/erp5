@@ -52,7 +52,6 @@
             <key> <string>_body</string> </key>
             <value> <string>translateString = context.Base_translateString\n
 request = context.REQUEST\n
-\n
 # display only title line instead of description\n
 use_line_title =  request.get(\'use_line_title\', 0)\n
 \n
@@ -190,7 +189,11 @@ for line in getSubLineList(context):\n
         display_id = \'title\'\n
       desc = (\', \'.join([x[0] for x in\n
                         line.getVariationCategoryItemList(display_id=display_id)]),)\n
-    vat =context.getPortalObject().portal_preferences.getPreferredTaxUseList()\n
+    if context.getPortalObject().portal_preferences.getPreferredTaxUseList()==[] :\n
+        vat="use/trade/tax"\n
+    else:\n
+        vat=context.getPortalObject().portal_preferences.getPreferredTaxUseList()[0]\n
+\n
     line_dict = {\n
       \'style_name\': \'Table_20_Contents\',\n
       \'left_style_name\': \'Table_20_Contents_20_Left\',\n
@@ -201,7 +204,7 @@ for line in getSubLineList(context):\n
                       and line.getResourceValue().getReference() or \'\',\n
       \'description\': desc,\n
       \'use_type\':line.getResourceValue().getUse(),\n
-      \'use_with_type\':line.isMemberOf(vat[0]),\n
+      \'use_type_tax\':line.isMemberOf(vat),\n
       \'total_quantity\': line.getTotalQuantity() or \'\',\n
       \'quantity_unit\': line.getQuantityUnitTranslatedTitle() or (\n
         line.getResource() and line.getResourceValue().getQuantityUnitTranslatedTitle()) or \'\',\n
@@ -210,7 +213,7 @@ for line in getSubLineList(context):\n
       \'total_price\': line.getTotalPrice() or \'\',\n
       \'specialise_title\' : line.getProperty(\'specialise_title\', \'\'),\n
     }\n
-    if line_dict[\'use_with_type\']:\n
+    if line_dict[\'use_type_tax\']:\n
       vatnames.append(desc[0])\n
       vatprices.append(line.getTotalPrice())\n
       numbers.append(number)\n
