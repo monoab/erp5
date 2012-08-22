@@ -139,7 +139,7 @@ vatnames=[]\n
 vatprices=[]\n
 numbers=[]\n
 number=0\n
-\n
+isVat=0\n
 line_list = []\n
 line_no_vat=[]\n
 total_price = 0.0\n
@@ -191,9 +191,11 @@ for line in getSubLineList(context):\n
                         line.getVariationCategoryItemList(display_id=display_id)]),)\n
     if context.getPortalObject().portal_preferences.getPreferredTaxUseList()==[] :\n
         vat="use/trade/tax"\n
+        isVat=line.isMemberOf(vat)        \n
     else:\n
-        vat=context.getPortalObject().portal_preferences.getPreferredTaxUseList()[0]\n
-\n
+        vatlist=context.getPortalObject().portal_preferences.getPreferredTaxUseList()        \n
+        for vat in vatlist:\n
+            isVat=isVat or line.isMemberOf(vat)\n
     line_dict = {\n
       \'style_name\': \'Table_20_Contents\',\n
       \'left_style_name\': \'Table_20_Contents_20_Left\',\n
@@ -204,7 +206,7 @@ for line in getSubLineList(context):\n
                       and line.getResourceValue().getReference() or \'\',\n
       \'description\': desc,\n
       \'use_type\':line.getResourceValue().getUse(),\n
-      \'use_type_tax\':line.isMemberOf(vat),\n
+      \'use_type_tax\':isVat,\n
       \'total_quantity\': line.getTotalQuantity() or \'\',\n
       \'quantity_unit\': line.getQuantityUnitTranslatedTitle() or (\n
         line.getResource() and line.getResourceValue().getQuantityUnitTranslatedTitle()) or \'\',\n
