@@ -616,7 +616,8 @@ AAA=</string> </value>
                         <text:p text:style-name=\'Table_20_Heading\' tal:content="python: data_dict[\'vat_total_list\'][\'name\'][vatnumber]+\' :\'">:</text:p>\n
                     </table:table-cell>\n
                     <table:table-cell table:style-name=\'Tableau3.E3\'\n
-                                    office:value-type=\'float\'>\n
+                                    office:value-type=\'float\'\n
+                                    tal:attributes="office:value python:data_dict[\'vat_total_list\'][\'price\'][vatnumber]">\n
                         <text:p text:style-name=\'Table_20_Heading\' tal:content="python: data_dict[\'vat_total_list\'][\'price\'][vatnumber]">:</text:p>\n
                     </table:table-cell>\n
                   </tal:block>\n
@@ -636,10 +637,10 @@ AAA=</string> </value>
                   <text:p text:style-name=\'Table_20_Heading\'><span tal:replace=\'orig_message\'/> :</text:p>\n
                   <text:p text:style-name=\'Table_20_Heading\' tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/>:</text:p>\n
                 </table:table-cell>\n
-                <table:table-cell table:style-name=\'Tableau3.E3\' office:value-type=\'float\' tal:attributes="office:value python:data_dict[\'total_price_novat\'] ">\n
+                <table:table-cell table:style-name=\'Tableau3.E3\' office:value-type=\'float\' tal:attributes="office:value python:data_dict[\'total_price\'] ">\n
                   <!-- TODO: use getTotalNetPrice after supporting discount ? -->\n
                   <text:p text:style-name=\'Table_20_Contents_20_Right\'\n
-                          tal:content=\'python: price_renderer(data_dict["total_price_novat"]+data_dict["vat_total_price"])\'>12345</text:p>\n
+                          tal:content=\'python: price_renderer(data_dict["total_price"])\'>12345</text:p>\n
                 </table:table-cell>\n
               </table:table-row>\n
 \n
