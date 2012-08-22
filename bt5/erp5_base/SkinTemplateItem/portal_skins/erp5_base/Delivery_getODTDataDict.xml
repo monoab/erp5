@@ -427,6 +427,7 @@ data_dict = {\n
   \'delivery_mode\': context.getDeliveryModeTranslatedTitle() or \'\',\n
   \'incoterm\': context.getIncoterm() and context.getIncotermValue().getCodification() or \'\',\n
 \n
+  \'total_price\':total_price+total_vat_price,\n
   \'total_price_novat\': total_price,\n
   \'vat_list\': total_vat,\n
   \'vat_total_price\':total_vat_price,\n
