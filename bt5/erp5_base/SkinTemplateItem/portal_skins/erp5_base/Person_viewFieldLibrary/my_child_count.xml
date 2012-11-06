@@ -10,10 +10,10 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
-                <string>description</string>
                 <string>default</string>
+                <string>description</string>
                 <string>editable</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -120,7 +120,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Number of Children</string> </value>
+                    <value> <string>Number Of Children</string> </value>
                 </item>
               </dictionary>
             </value>
