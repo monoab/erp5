@@ -10,8 +10,8 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
                 <string>enabled</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -85,6 +85,10 @@
             <value>
               <dictionary>
                 <item>
+                    <key> <string>enabled</string> </key>
+                    <value> <int>1</int> </value>
+                </item>
+                <item>
                     <key> <string>field_id</string> </key>
                     <value> <string>my_view_mode_telephone_coordinate_text</string> </value>
                 </item>
@@ -98,7 +102,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Default Fax</string> </value>
+                    <value> <string>Default FAX</string> </value>
                 </item>
               </dictionary>
             </value>
@@ -127,7 +131,7 @@
       <dictionary>
         <item>
             <key> <string>_text</string> </key>
-            <value> <string>string:</string> </value>
+            <value> <string>string:Default FAX</string> </value>
         </item>
       </dictionary>
     </pickle>
