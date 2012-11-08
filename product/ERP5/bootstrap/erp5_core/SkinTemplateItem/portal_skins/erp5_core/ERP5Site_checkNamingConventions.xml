@@ -64,12 +64,13 @@
 # - Check script names (from skin folders and workflows).\n
 \n
 ABBRIVIATION_WORD_LIST = ( \'ID\', \'URL\', \'URI\', \'VAT\', \'FAX\', \'GAP\', \'IBAN\', \'BBAN\', \'EAN\', \'BOM\', \'BIC\'\n
-                         , \'CSV\', \'SVN\', \'UBM\', \'VPN\', \'CAD\', \'ERP5\', \'PDM\', \'EAN-13\'\n
+                         , \'CSV\', \'SVN\', \'UBM\', \'VPN\', \'CAD\', \'ERP5\', \'PDM\', \'EAN-13\', \'HTML\', \'SQL\'\n
                          )\n
 ABBRIVIATION_WORD_DICT = dict([(word, 1) for word in ABBRIVIATION_WORD_LIST])\n
 \n
 # List of words that do not need to be titlecased\n
-LOWERCASE_WORD_LIST = (\'g\', \'cm\', \'kg\', \'%\', \'/\', \'...\', \'m\', \'-\',\'the\', \'is\', \'as\', \'but\', \'has\', \'been\')\n
+LOWERCASE_WORD_LIST = (\'g\', \'cm\', \'kg\', \'%\', \'/\', \'...\', \'m\', \'-\',\'the\', \'is\', \'as\', \'but\', \'has\', \'been\', \n
+                      \'that\', \'of\')\n
 LOWERCASE_WORD_DICT = dict([(word, 1) for word in LOWERCASE_WORD_LIST])\n
 \n
 # List of allowed characters, usefull to detect non-english strings\n
