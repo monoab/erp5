@@ -10,10 +10,10 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
-                <string>selection_name</string>
-                <string>list_method</string>
                 <string>columns</string>
+                <string>list_method</string>
+                <string>selection_name</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -80,7 +80,7 @@
                       <list>
                         <tuple>
                           <string>relative_url</string>
-                          <string>Relative Url</string>
+                          <string>Relative URL</string>
                         </tuple>
                         <tuple>
                           <string>title</string>
