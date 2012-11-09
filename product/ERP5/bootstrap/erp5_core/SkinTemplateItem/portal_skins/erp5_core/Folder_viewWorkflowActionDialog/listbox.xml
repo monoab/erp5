@@ -10,11 +10,11 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
                 <string>columns</string>
+                <string>editable_columns</string>
                 <string>list_method</string>
                 <string>selection_name</string>
-                <string>editable_columns</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -57,6 +57,10 @@
             <value>
               <dictionary>
                 <item>
+                    <key> <string>editable_columns</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>field_id</string> </key>
                     <value> <string></string> </value>
                 </item>
@@ -65,7 +69,19 @@
                     <value> <string></string> </value>
                 </item>
                 <item>
+                    <key> <string>list_method</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
+                    <key> <string>selection_name</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>target</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
+                    <key> <string>title</string> </key>
                     <value> <string></string> </value>
                 </item>
               </dictionary>
@@ -101,15 +117,15 @@
                         </tuple>
                         <tuple>
                           <string>portal_type</string>
-                          <string></string>
+                          <string>Portal Type</string>
                         </tuple>
                         <tuple>
                           <string>state_var</string>
-                          <string></string>
+                          <string>Variable</string>
                         </tuple>
                         <tuple>
                           <string>workflow_state</string>
-                          <string></string>
+                          <string>State ID</string>
                         </tuple>
                       </list>
                     </value>
@@ -120,15 +136,15 @@
                       <list>
                         <tuple>
                           <string>portal_type</string>
-                          <string></string>
+                          <string>Portal Type</string>
                         </tuple>
                         <tuple>
                           <string>state_var</string>
-                          <string></string>
+                          <string>State Variable</string>
                         </tuple>
                         <tuple>
                           <string>workflow_state</string>
-                          <string></string>
+                          <string>Workflow State</string>
                         </tuple>
                         <tuple>
                           <string>workflow_action</string>
