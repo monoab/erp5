@@ -143,7 +143,7 @@ def checkTitle(path, id, title, field=None):\n
       if not word[:-1].isupper():\n
         error_message += \'%s : %s : %r is not upper case even though it is an abbriviation\\n\' % (path, id, word)\n
     else:\n
-      if not word.istitle() and word not in LOWERCASE_WORD_DICT:\n
+      if word.capitalize() != word and word not in LOWERCASE_WORD_DICT:\n
         error_message += \'%s : %s : %r is not titlecased\\n\' % (path, id, word)\n
   if len(word_list) > 1 and word_list[-1].upper() == \'LIST\' and word_list[-2].upper() != \'PACKING\':\n
     error_message += \'%s : %s : %r is a jargon\\n\' % (path, id, title)\n
