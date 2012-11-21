@@ -62,7 +62,7 @@
 #   translated naturally for other languages).\n
 # - Check skin names.\n
 # - Check script names (from skin folders and workflows).\n
-\n
+import re\n
 ABBRIVIATION_WORD_LIST = ( \'ID\', \'URL\', \'URI\', \'VAT\', \'FAX\', \'GAP\', \'IBAN\', \'BBAN\', \'EAN\', \'BOM\', \'BIC\'\n
                          , \'CSV\', \'SVN\', \'UBM\', \'VPN\', \'CAD\', \'ERP5\', \'PDM\', \'EAN-13\', \'HTML\', \'SQL\',\n
                          \'ZODB\', \'UOM\', \'TALES\', \'RAM\'\n
@@ -115,6 +115,12 @@ def getFieldFromProxyField(field):\n
     return template_field\n
   return field      \n
 \n
+def titlecase(s):\n
+  return re.sub(r"[A-Za-z]+(\'[A-Za-z]+)?",\n
+                   lambda mo: mo.group(0)[0].upper() +\n
+                              mo.group(0)[1:].lower(),\n
+                   s)\n
+\n
 def checkTitle(path, id, title, field=None):\n
   """\n
     Generic function that test the validity of a title.\n
@@ -143,7 +149,7 @@ def checkTitle(path, id, title, field=None):\n
       if not word[:-1].isupper():\n
         error_message += \'%s : %s : %r is not upper case even though it is an abbriviation\\n\' % (path, id, word)\n
     else:\n
-      if word.capitalize() != word and word not in LOWERCASE_WORD_DICT:\n
+      if titlecase(word) != word and word not in LOWERCASE_WORD_DICT:\n
         error_message += \'%s : %s : %r is not titlecased\\n\' % (path, id, word)\n
   if len(word_list) > 1 and word_list[-1].upper() == \'LIST\' and word_list[-2].upper() != \'PACKING\':\n
     error_message += \'%s : %s : %r is a jargon\\n\' % (path, id, title)\n
