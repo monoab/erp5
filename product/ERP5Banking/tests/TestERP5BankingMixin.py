@@ -462,6 +462,11 @@ class TestERP5BankingMixin(ERP5TypeTestCase):
          portal_type='Banknote', base_price=100,
          price_currency_value=self.currency_1, variation_list=('1992', '2003'),
          quantity_unit_value=self.unit)
+    # create document for banknote of 500 euros from years 2003
+    self.billet_500 = self.currency_cash_module.newContent(id='billet_500',
+	 portal_type='Banknote', base_price=500,
+	 price_currency_value=self.currency_1, variation_list=('2003'),
+	 quantity_unit_value=self.unit)
     # Create Resources Document (Banknotes & Coins) in USD
     self.currency_2 = self.currency_module['USD']
     # create document for banknote of 100 USD
