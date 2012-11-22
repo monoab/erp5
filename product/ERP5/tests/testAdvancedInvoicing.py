@@ -31,7 +31,6 @@
   Most test-cases are based on the testInvoice.py.
 """
 
-import transaction
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from Products.ERP5Type.tests.SecurityTestCase import SecurityTestCase
 from AccessControl.SecurityManagement import newSecurityManager
@@ -64,6 +63,8 @@ class TestAdvancedInvoice(TestSaleInvoiceMixin, ERP5TypeTestCase):
   stepCheckDeliveryBuilding
   stepConfirmOrder
   stepTic
+  stepPackingListBuilderAlarm
+  stepTic
   stepCheckOrderRule
   stepCheckOrderSimulation
   stepCheckDeliveryBuilding
@@ -77,6 +78,8 @@ class TestAdvancedInvoice(TestSaleInvoiceMixin, ERP5TypeTestCase):
   INVOICE_DEFAULT_SEQUENCE = PACKING_LIST_DEFAULT_SEQUENCE + \
   """
   stepStartPackingList
+  stepTic
+  stepInvoiceBuilderAlarm
   stepTic
   stepStartRelatedInvoice
   stepTic
@@ -99,6 +102,8 @@ class TestAdvancedInvoice(TestSaleInvoiceMixin, ERP5TypeTestCase):
   stepTic
   stepCheckDeliveryBuilding
   stepConfirmOrder
+  stepTic
+  stepPackingListBuilderAlarm
   stepTic
   stepCheckOrderRule
   stepCheckOrderSimulation
@@ -131,7 +136,10 @@ class TestAdvancedInvoice(TestSaleInvoiceMixin, ERP5TypeTestCase):
     return ('erp5_core_proxy_field_legacy', 'erp5_base', 'erp5_pdm',
         'erp5_simulation', 'erp5_trade', 'erp5_accounting', 'erp5_invoicing',
         'erp5_advanced_invoicing', 'erp5_apparel', 'erp5_project',
-        'erp5_simulation_test')
+        'erp5_configurator_standard_trade_template',
+        'erp5_configurator_standard_invoicing_template',
+        'erp5_configurator_standard_accounting_template',
+        'erp5_configurator_standard_solver', 'erp5_simulation_test')
 
   def stepStartRelatedInvoice(self, sequence=None, sequence_list=None, **kw):
     packing_list = sequence.get('packing_list')
@@ -168,7 +176,6 @@ class TestAdvancedInvoice(TestSaleInvoiceMixin, ERP5TypeTestCase):
     invoice_transaction = invoice.getCausalityRelatedValue()
     transaction_line_1 = invoice_transaction.newContent(portal_type=self.invoice_transaction_line_portal_type)
     transaction_line_2 = invoice_transaction.newContent(portal_type=self.invoice_transaction_line_portal_type)
-    transaction.commit()
     self.tic()
     transaction_line_1.edit(id ='receivable', source='account_module/customer',
         destination='account_module/supplier', quantity=-1665)
@@ -273,7 +280,7 @@ class TestAdvancedInvoice(TestSaleInvoiceMixin, ERP5TypeTestCase):
 
     invoice_transaction  = invoice.getCausalityRelatedValue()
     self.assertNotEquals(invoice_transaction, None)
-    self.assertEquals('draft', invoice_transaction.getCausalityState())
+    self.assertEquals('solved', invoice_transaction.getCausalityState())
     
   def test_AcceptQuantityDivergenceOnInvoiceWithStoppedPackingList(self, quiet=quiet, run=RUN_ALL_TESTS):
     """Accept divergence with stopped packing list"""
@@ -287,6 +294,8 @@ class TestAdvancedInvoice(TestSaleInvoiceMixin, ERP5TypeTestCase):
       stepTic
       stepStartPackingList
       stepStopPackingList
+      stepTic
+      stepInvoiceBuilderAlarm
       stepTic
       stepChangeQuantityDoubledOnInvoice
       stepTic
@@ -313,6 +322,8 @@ class TestAdvancedInvoice(TestSaleInvoiceMixin, ERP5TypeTestCase):
       """
       stepStartPackingList
       stepStopPackingList
+      stepTic
+      stepInvoiceBuilderAlarm
       stepTic
       stepChangeQuantityDoubledOnInvoice
       stepTic
@@ -379,7 +390,6 @@ class TestAdvancedInvoice(TestSaleInvoiceMixin, ERP5TypeTestCase):
                             quantity=10,
                             price=3)
     invoice.confirm()
-    transaction.commit()
     self.tic()
 
     odt = invoice.Invoice_viewAsODT()
@@ -413,7 +423,7 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
     self.portal.erp5_sql_transactionless_connection.manage_test(
      "delete from portal_ids where \
        id_group='Accounting_Transaction_Module-Sale_Invoice_Transaction'")
-    transaction.commit()
+    self.commit()
 
   def stepCheckInvoicesAndTransactionsConsistency(self, sequence=None, sequence_list=None,
                                                   **kw):
@@ -498,6 +508,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
       stepStartPackingList
       stepStartNewPackingList
       stepTic
+      stepInvoiceBuilderAlarm
+      stepTic
       stepCheckTwoInvoices
       stepRemoveDateMovementGroupForAdvancedTransactionBuilder
       stepStartTwoInvoices
@@ -526,6 +538,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
     stepStartPackingList
     stepCheckInvoicingRule
     stepTic
+    stepInvoiceBuilderAlarm
+    stepTic
     stepCheckInvoiceBuilding
     stepRebuildAndCheckNothingIsCreated
     stepCheckInvoicesConsistency
@@ -548,6 +562,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
     stepStartPackingList
     stepCheckInvoicingRule
     stepCheckInvoiceTransactionRule
+    stepTic
+    stepInvoiceBuilderAlarm
     stepTic
     stepCheckInvoiceBuilding
 
@@ -589,6 +605,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
     stepStartPackingList
     stepCheckInvoicingRule
     stepCheckInvoiceTransactionRule
+    stepTic
+    stepInvoiceBuilderAlarm
     stepTic
     stepCheckInvoiceBuilding
 
@@ -634,6 +652,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
     stepStartPackingList
     stepCheckInvoicingRule
     stepCheckInvoiceTransactionRule
+    stepTic
+    stepInvoiceBuilderAlarm
     stepTic
     stepCheckInvoiceBuilding
 
@@ -704,6 +724,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
     stepStartPackingList
     stepCheckInvoicingRule
     stepCheckInvoiceTransactionRule
+    stepTic
+    stepInvoiceBuilderAlarm
     stepTic
     stepCheckInvoiceBuilding
 
@@ -782,6 +804,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
     stepCheckInvoicingRule
     stepCheckInvoiceTransactionRule
     stepTic
+    stepInvoiceBuilderAlarm
+    stepTic
     stepCheckInvoiceBuilding
     stepStopPackingList
     stepTic
@@ -849,6 +873,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
     stepStartPackingList
     stepCheckInvoicingRule
     stepCheckInvoiceTransactionRule
+    stepTic
+    stepInvoiceBuilderAlarm
     stepTic
     stepCheckInvoiceBuilding
     stepStopPackingList
@@ -941,6 +967,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
           stepStartPackingList
           stepCheckInvoicingRule
           stepTic
+          stepInvoiceBuilderAlarm
+          stepTic
           stepCheckInvoiceBuilding
           stepRebuildAndCheckNothingIsCreated
           stepCheckInvoicesConsistency
@@ -973,6 +1001,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
       stepStartPackingList
       stepCheckInvoicingRule
       stepTic
+      stepInvoiceBuilderAlarm
+      stepTic
       stepCheckInvoiceBuilding
       stepRebuildAndCheckNothingIsCreated
       stepCheckInvoicesConsistency
@@ -1002,6 +1032,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
       stepStartPackingList
       stepCheckInvoicingRule
       stepTic
+      stepInvoiceBuilderAlarm
+      stepTic
       stepCheckInvoiceBuilding
       stepCheckInvoicesConsistency
       stepCheckPackingListInvoice
@@ -1022,6 +1054,8 @@ class TestAdvancedSaleInvoice(TestAdvancedInvoice):
       stepSetReadyPackingList
       stepTic
       stepStartPackingList
+      stepTic
+      stepInvoiceBuilderAlarm
       stepTic
       stepChangeQuantityDoubledOnInvoice
       stepTic
@@ -1077,6 +1111,8 @@ class TestAdvancedPurchaseInvoice(TestAdvancedInvoice):
   stepCheckDeliveryBuilding
   stepConfirmOrder
   stepTic
+  stepPackingListBuilderAlarm
+  stepTic
   stepCheckOrderRule
   stepCheckOrderSimulation
   stepCheckDeliveryBuilding
@@ -1086,6 +1122,8 @@ class TestAdvancedPurchaseInvoice(TestAdvancedInvoice):
   INVOICE_DEFAULT_SEQUENCE = PACKING_LIST_DEFAULT_SEQUENCE + \
   """
   stepReceivePackingList
+  stepTic
+  stepInvoiceBuilderAlarm
   stepTic
   stepStartRelatedInvoice
   stepTic
@@ -1097,7 +1135,7 @@ class TestAdvancedPurchaseInvoice(TestAdvancedInvoice):
     packing_list.start()
     packing_list.stop()
     self.assertEquals('stopped', packing_list.getSimulationState())
-    transaction.commit()
+    self.commit()
 
 
 class TestWorkflow(SecurityTestCase):
@@ -1127,7 +1165,6 @@ class TestWorkflow(SecurityTestCase):
       for role in role_list:
         type_document = sale_invoice_type.newContent(portal_type='Role Information')
         type_document.edit(**role)
-      transaction.commit()
       self.tic()
 
     for role in role_list:
@@ -1140,7 +1177,6 @@ class TestWorkflow(SecurityTestCase):
             node = node.newContent(id=category_id, portal_type='Category')
           else:
             node = node.get(category_id)
-    transaction.commit()
     self.tic()
 
     person_list = [
@@ -1162,7 +1198,6 @@ class TestWorkflow(SecurityTestCase):
           assignment_document = person_document.newContent(portal_type='Assignment')
           assignment_document.edit(function=assignment['function'])
           self.portal.portal_workflow.doActionFor(assignment_document, 'open_action')
-        transaction.commit()
         self.tic()
         setattr(self, person['id'], person_document)
 

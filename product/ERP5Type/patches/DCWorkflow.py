@@ -21,8 +21,7 @@ from Products.DCWorkflow.DCWorkflow import DCWorkflowDefinition, StateChangeInfo
 from Products.DCWorkflow.DCWorkflow import ObjectDeleted, ObjectMoved, aq_parent, aq_inner
 from Products.DCWorkflow import DCWorkflow
 from Products.DCWorkflow.Transitions import TRIGGER_WORKFLOW_METHOD, TransitionDefinition
-from AccessControl import getSecurityManager, ClassSecurityInfo, \
-        ModuleSecurityInfo, Unauthorized
+from AccessControl import getSecurityManager, ModuleSecurityInfo, Unauthorized
 from Products.CMFCore.utils import getToolByName
 from Products.CMFCore.WorkflowCore import WorkflowException
 from Products.CMFCore.utils import  _getAuthenticatedUser
@@ -30,15 +29,13 @@ from DocumentTemplate.DT_Util import TemplateDict
 from DateTime import DateTime
 from Products.ERP5Type.Cache import CachingMethod
 from Products.ERP5Type.Utils import convertToMixedCase
-from string import join
 import sys
-from zLOG import LOG
 from Acquisition import aq_base
 from copy import deepcopy
 
 # Patch WorkflowUIMixin to add description on workflows
 from Products.DCWorkflow.WorkflowUIMixin import WorkflowUIMixin as WorkflowUIMixin_class
-from Products.DCWorkflow.Guard import Guard, _checkPermission, createExprContext, StateChangeInfo
+from Products.DCWorkflow.Guard import Guard, _checkPermission
 
 ACTIVITY_GROUPING_COUNT = 100
 
@@ -155,7 +152,7 @@ def DCWorkflowDefinition_listGlobalActions(self, info):
                   catalog = portal.portal_catalog
                   for k in var_match_keys:
                     v = qdef.getVarMatch(k)
-                    if instance(v, Expression):
+                    if isinstance(v, Expression):
                       v_fmt = v(createExprContext(StateChangeInfo(portal,
                                 self, kwargs=info.__dict__.copy())))
                     else:
@@ -240,7 +237,6 @@ def DCWorkflowDefinition_getWorklistVariableMatchDict(self, info,
     return None
   variable_match_dict = {}
   security_manager = getSecurityManager()
-  workflow_tool = portal.portal_workflow
   workflow_id = self.id
   workflow_title = self.title
   for worklist_id, worklist_definition in self.worklists.items():
@@ -404,8 +400,7 @@ def DCWorkflowDefinition_executeTransition(self, ob, tdef=None, kwargs=None):
         sci = StateChangeInfo(
             ob, self, status, tdef, old_sdef, new_sdef, kwargs)
         # put the error message in the workflow history
-        sci.setWorkflowVariable(ob, workflow_id=self.id,
-                                error_message = before_script_error_message)
+        sci.setWorkflowVariable(error_message=before_script_error_message)
         if validation_exc :
             # reraise validation failed exception
             raise validation_exc, None, validation_exc_traceback
@@ -455,7 +450,10 @@ def _executeMetaTransition(self, ob, new_state_id):
   kwargs = None
   # Figure out the old and new states.
   old_sdef = self._getWorkflowStateOf(ob)
-  old_state = old_sdef.getId()
+  if old_sdef is None:
+    old_state = self._getWorkflowStateOf(ob, id_only=True)
+  else:
+    old_state = old_sdef.getId()
   if old_state == new_state_id:
     # Object is already in expected state
     return

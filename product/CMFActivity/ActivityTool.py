@@ -44,6 +44,7 @@ from AccessControl.SecurityManagement import newSecurityManager
 from AccessControl.SecurityManagement import noSecurityManager
 from AccessControl.SecurityManagement import setSecurityManager
 from AccessControl.SecurityManagement import getSecurityManager
+from AccessControl.User import system as system_user
 from Products.CMFCore.utils import UniqueObject, _getAuthenticatedUser
 from Products.ERP5Type.Globals import InitializeClass, DTMLFile
 from Acquisition import aq_base, aq_inner, aq_parent
@@ -51,6 +52,9 @@ from ActivityBuffer import ActivityBuffer
 from ActivityRuntimeEnvironment import BaseMessage
 from zExceptions import ExceptionFormatter
 from BTrees.OIBTree import OIBTree
+from Zope2 import app
+from Products.ERP5Type.UnrestrictedMethod import PrivilegedUser
+from zope.site.hooks import setSite
 
 try:
   from Products import iHotfix
@@ -203,6 +207,13 @@ class Message(BaseMessage):
           request.environ['HTTP_ACCEPT_LANGUAGE']
       self.request_info['_script'] = list(request._script)
 
+  def getGroupId(self):
+    get = self.activity_kw.get
+    group_method_id = get('group_method_id', '')
+    if group_method_id is None:
+      group_method_id = 'portal_activities/dummyGroupMethod/' + self.method_id
+    return group_method_id + '\0' + get('group_id', '')
+
   def getObject(self, activity_tool):
     """return the object referenced in this message."""
     return activity_tool.unrestrictedTraverse(self.object_path)
@@ -231,7 +242,9 @@ class Message(BaseMessage):
 
   def changeUser(self, user_name, activity_tool):
     """restore the security context for the calling user."""
-    uf = activity_tool.getPortalObject().acl_users
+    portal = activity_tool.getPortalObject()
+    portal_uf = portal.acl_users
+    uf = portal_uf
     user = uf.getUserById(user_name)
     # if the user is not found, try to get it from a parent acl_users
     # XXX this is still far from perfect, because we need to store all
@@ -239,8 +252,15 @@ class Message(BaseMessage):
     # replay the activity with exactly the same security context as if
     # it had been executed without activity.
     if user is None:
-      uf = activity_tool.getPortalObject().aq_parent.acl_users
+      uf = portal.aq_parent.acl_users
       user = uf.getUserById(user_name)
+    if user is None and user_name == system_user.getUserName():
+      # The following logic partly comes from unrestricted_apply()
+      # implementation in ERP5Type.UnrestrictedMethod but we get roles
+      # from the portal to have more roles.
+      uf = portal_uf
+      role_list = uf.valid_roles()
+      user = PrivilegedUser(user_name, None, role_list, ()).__of__(uf)
     if user is not None:
       user = user.__of__(uf)
       newSecurityManager(None, user)
@@ -287,6 +307,8 @@ class Message(BaseMessage):
             self.setExecutionState(MESSAGE_NOT_EXECUTABLE, exc_info,
                                    context=activity_tool)
           else:
+            # Store site info
+            setSite(activity_tool.getParentValue())
             if activity_tool.activity_timing_log:
               result = activity_timing_method(method, self.args, self.kw)
             else:
@@ -307,9 +329,6 @@ class Message(BaseMessage):
     return activity.validate(activity_tool, self,
                              check_order_validation=check_order_validation,
                              **self.activity_kw)
-
-  def getDependentMessageList(self, activity, activity_tool):
-    return activity.getDependentMessageList(activity_tool, self, **self.activity_kw)
 
   def notifyUser(self, activity_tool, retry=False):
     """Notify the user that the activity failed."""
@@ -429,7 +448,8 @@ class Method:
     portal_activities = passive_self.getPortalObject().portal_activities
     if portal_activities.activity_tracking:
       activity_tracking_logger.info('queuing message: activity=%s, object_path=%s, method_id=%s, args=%s, kw=%s, activity_kw=%s, user_name=%s' % (self.__activity, '/'.join(m.object_path), m.method_id, m.args, m.kw, m.activity_kw, m.user_name))
-    activity_dict[self.__activity].queueMessage(portal_activities, m)
+    portal_activities.getActivityBuffer().deferredQueueMessage(
+      portal_activities, activity_dict[self.__activity], m)
 
 allow_class(Method)
 
@@ -552,7 +572,7 @@ class ActivityTool (Folder, UniqueObject):
 
     def initialize(self):
       global is_initialized
-      from Activity import RAMQueue, RAMDict, SQLQueue, SQLDict
+      from Activity import SQLQueue, SQLDict
       # Initialize each queue
       for activity in activity_dict.itervalues():
         activity.initialize(self)
@@ -749,7 +769,7 @@ class ActivityTool (Folder, UniqueObject):
       nodes = self._nodes
       if isinstance(nodes, tuple):
         new_nodes = OIBTree()
-        new_nodes.update([(x, ROLE_PROCESSING) for x in self._nodes])
+        new_nodes.update([(x, ROLE_PROCESSING) for x in nodes])
         self._nodes = nodes = new_nodes
       return nodes
 
@@ -827,7 +847,6 @@ class ActivityTool (Folder, UniqueObject):
     def manage_addToProcessingList(self, unused_node_list=None, REQUEST=None):
       """ Change one or more idle nodes into processing nodes """
       if unused_node_list is not None:
-        node_dict = self.getNodeDict()
         for node in unused_node_list:
           self.updateNode(node, ROLE_PROCESSING)
       if REQUEST is not None:
@@ -844,7 +863,6 @@ class ActivityTool (Folder, UniqueObject):
     def manage_removeFromProcessingList(self, processing_node_list=None, REQUEST=None):
       """ Change one or more procesing nodes into idle nodes """
       if processing_node_list is not None:
-        node_dict = self.getNodeDict()
         for node in processing_node_list:
           self.updateNode(node, ROLE_IDLE)
       if REQUEST is not None:
@@ -962,25 +980,26 @@ class ActivityTool (Folder, UniqueObject):
       inner_self = aq_inner(self)
 
       try:
-        #Sort activity list by priority
-        activity_list = sorted(activity_dict.itervalues(),
-                               key=lambda activity: activity.getPriority(self))
-
-        # Wakeup each queue
-        for activity in activity_list:
-          activity.wakeup(inner_self, processing_node)
-
-        # Process messages on each queue in round robin
-        has_awake_activity = 1
-        while has_awake_activity:
-          has_awake_activity = 0
-          for activity in activity_list:
-            if is_running_lock.acquire(0):
-              try:
-                activity.tic(inner_self, processing_node) # Transaction processing is the responsability of the activity
-                has_awake_activity = has_awake_activity or activity.isAwake(inner_self, processing_node)
-              finally:
-                is_running_lock.release()
+        # Loop as long as there are activities. Always process the queue with
+        # "highest" priority. If several queues have same highest priority, do
+        # not choose one that has just been processed.
+        # This algorithm is fair enough because we only have 2 queues.
+        # Otherwise, a round-robin of highest-priority queues would be required.
+        # XXX: We always finish by iterating over all queues, in case that
+        #      getPriority does not see messages dequeueMessage would process.
+        last = None
+        def sort_key(activity):
+          return activity.getPriority(self), activity is last
+        while is_running_lock.acquire(0):
+          try:
+            for last in sorted(activity_dict.values(), key=sort_key):
+              # Transaction processing is the responsability of the activity
+              if not last.dequeueMessage(inner_self, processing_node):
+                break
+            else:
+              break
+          finally:
+            is_running_lock.release()
       finally:
         # decrease the number of active_threads
         tic_lock.acquire()
@@ -1046,14 +1065,6 @@ class ActivityTool (Folder, UniqueObject):
         active_process = self.unrestrictedTraverse(active_process)
       return ActiveWrapper(object, activity, active_process, kw)
 
-    def deferredQueueMessage(self, activity, message):
-      activity_buffer = self.getActivityBuffer()
-      activity_buffer.deferredQueueMessage(self, activity, message)
-
-    def deferredDeleteMessage(self, activity, message):
-      activity_buffer = self.getActivityBuffer()
-      activity_buffer.deferredDeleteMessage(self, activity, message)
-
     def getRegisteredMessageList(self, activity):
       activity_buffer = self.getActivityBuffer(create_if_not_found=False)
       if activity_buffer is not None:
@@ -1079,18 +1090,6 @@ class ActivityTool (Folder, UniqueObject):
       for activity in activity_dict.itervalues():
         activity.flush(aq_inner(self), object_path, invoke=invoke, **kw)
 
-    def start(self, **kw):
-      if not is_initialized:
-        self.initialize()
-      for activity in activity_dict.itervalues():
-        activity.start(aq_inner(self), **kw)
-
-    def stop(self, **kw):
-      if not is_initialized:
-        self.initialize()
-      for activity in activity_dict.itervalues():
-        activity.stop(aq_inner(self), **kw)
-
     def invoke(self, message):
       if self.activity_tracking:
         activity_tracking_logger.info('invoking message: object_path=%s, method_id=%s, args=%r, kw=%r, activity_kw=%r, user_name=%s' % ('/'.join(message.object_path), message.method_id, message.args, message.kw, message.activity_kw, message.user_name))
@@ -1113,8 +1112,7 @@ class ActivityTool (Folder, UniqueObject):
         # runing unit tests. Recreate it if it does not exist.
         if getattr(request.other, 'PARENTS', None) is None:
           request.other['PARENTS'] = parents
-        # XXX: itools (used by Localizer) requires PATH_INFO to be set, and it's
-        # not when runing unit tests. Recreate it if it does not exist.
+        # XXX: PATH_INFO might not be set when runing unit tests.
         if request.environ.get('PATH_INFO') is None:
           request.environ['PATH_INFO'] = '/Control_Panel/timer_service/process_timer'
         
@@ -1440,13 +1438,13 @@ class ActivityTool (Folder, UniqueObject):
       if not is_initialized:
         self.initialize()
       message_list = []
-      method_id = "_validate_%s" % validator_id
+      method_id = "_validate_" + validator_id
       for activity in activity_dict.itervalues():
         method = getattr(activity, method_id, None)
         if method is not None:
           result = method(aq_inner(self), message, validation_value)
           if result:
-            message_list.extend([(activity, m) for m in result])
+            message_list += [(activity, m) for m in result]
       return message_list
 
     # Required for tests (time shift)

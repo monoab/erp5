@@ -27,11 +27,12 @@
 #
 ##############################################################################
 
-import transaction
 import unittest
 from DateTime import DateTime
 from Products.ERP5TioSafe.tests.testPrestashopMixin import testPrestashopMixin
+from Products.ERP5Type.tests.backportUnittest import skip
 
+@skip("must be checked against zope2.12")
 class TestPersonERP5Synchronization(testPrestashopMixin):
   """ This class allows to check different cases of Person's sync. """
   def afterSetUp(self):
@@ -56,7 +57,6 @@ class TestPersonERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_person_sync_01.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run the sync of persons and check person's data after sync
@@ -84,7 +84,6 @@ class TestPersonERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_person_sync_02.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run the sync of persons and check person's data after sync
@@ -121,7 +120,6 @@ class TestPersonERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_person_sync_03.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run the sync of persons and check person's data after sync
@@ -176,7 +174,6 @@ class TestPersonERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_person_sync_04.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Check that an empty mapping is created in integration site
@@ -194,7 +191,6 @@ class TestPersonERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_person_sync_05.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run the sync of persons
@@ -224,7 +220,6 @@ class TestPersonERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_person_sync_06.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
     self.assertEqual(john_doe.getValidationState(), 'validated')
     self.assertEqual(jane_doe.getValidationState(), 'validated')
@@ -255,7 +250,6 @@ class TestPersonERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_person_sync_07.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run the sync of persons and check person's data after sync
@@ -315,7 +309,6 @@ class TestPersonERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_person_sync_09.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run the sync of persons and check person's data after sync

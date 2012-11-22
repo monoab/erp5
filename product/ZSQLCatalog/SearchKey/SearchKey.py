@@ -34,7 +34,7 @@ from Products.ZSQLCatalog.Query.ComplexQuery import ComplexQuery
 from Products.ZSQLCatalog.interfaces.search_key import ISearchKey
 from zope.interface.verify import verifyClass
 from zope.interface import implements
-from Products.ZSQLCatalog.SQLCatalog import profiler_decorator
+from Products.ZSQLCatalog.SQLCatalog import profiler_decorator, list_type_list
 
 single_operator_dict = {
   'min': '>=',
@@ -120,7 +120,7 @@ class SearchKey(object):
     operator_text = operator.getOperatorSearchText()
     if column is None:
       column = self.getColumn()
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list_type_list):
       assert operator_text == 'in'
       assert len(value)
       value = [self._renderValueAsSearchText(x, operator) for x in value]
@@ -167,14 +167,12 @@ class SearchKey(object):
   @profiler_decorator
   def _guessComparisonOperator(self, value):
     """
-      From a basestring instance, return a contained operator.
-      Value cannot be altered in the process.
+      From a basestring instance, return an operator.
+      To be overloaded by subclasses, to customise operator retrieval.
 
       value (string)
-      
-      Returns: 2-tuple of strings
-        First element is the operator. None if there was no operator in value.
-        Second element is the value without the operator.
+
+      Returns: operator as a string.
     """
     return self.default_comparison_operator
 
@@ -224,9 +222,6 @@ class SearchKey(object):
       default_logical_operator = 'or'
     parsed = False
     if isinstance(search_value, dict):
-      # comparison_operator parameter collides with dict's 'operator' key.
-      # Fail loudly.
-      assert comparison_operator is None
       actual_value = search_value['query']
       if search_value.get('key') not in (None, self.__class__.__name__):
         LOG(self.__class__.__name__, 100,
@@ -236,6 +231,9 @@ class SearchKey(object):
         assert 'operator' not in search_value, search_value
         assert 'range' not in search_value, search_value
       else:
+        # comparison_operator parameter collides with dict's 'operator' key.
+        # Fail loudly.
+        assert comparison_operator is None
         value_operator = search_value.get('operator')
         value_range = search_value.get('range')
         if value_range is not None:
@@ -243,7 +241,9 @@ class SearchKey(object):
             LOG('SearchKey', 100,
                 '"range" and "operator" are mutualy exclusive, ignoring '\
                 'operator: %r' % (search_value, ))
-          if value_range in single_operator_dict:
+          if value_range in operator_list:
+            comparison_operator = value_range
+          elif value_range in single_operator_dict:
             comparison_operator = single_operator_dict[value_range]
           elif value_range in dual_operator_dict:
             if not isinstance(actual_value, (tuple, list)):
@@ -272,14 +272,15 @@ class SearchKey(object):
             logical_operator = value_operator
         search_value = actual_value
     # Cast to list
-    if isinstance(search_value, (tuple, list)):
+    if isinstance(search_value, list_type_list):
       # Check list content (not empty, homogenous)
-      search_value_len = len(search_value)
-      if search_value_len == 0:
+      iter_search_value = iter(search_value)
+      try:
+        reference_class = iter_search_value.next().__class__
+      except StopIteration:
         raise ValueError, 'Value cannot be an empty list/tuple: %r' % \
                           (search_value, )
-      reference_class = search_value[0].__class__
-      for x in search_value[1:]:
+      for x in iter_search_value:
         if x.__class__ != reference_class:
           raise TypeError, 'List elements must be of the same class: %r' % \
                            (search_value, )

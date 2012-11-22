@@ -1,3 +1,15 @@
+2012-03-07 arnaud.fontaine
+* Add property to define preferred source code editor to Preference Property Sheets.
+
+2012-03-06 arnaud.fontaine
+* Add template_registered_version_priority_selection property to BusinessTemplate to define version and their priorities for ZODB Component only for now.
+
+2011-12-15 yusei
+* Fix ProductionOrderLine.resource_category_existence. Any resource type document is ok to be used as resource on production order line.
+
+2011-11-09 tatuya
+* Add same_total_quantity into PaySheetModel.
+
 2011-10-12 tatuya
 * Add preferred_accounting_bank_account_display_method into AccountingPreference to select the way to display bank account.
 

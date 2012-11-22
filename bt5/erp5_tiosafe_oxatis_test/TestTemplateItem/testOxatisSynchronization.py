@@ -27,7 +27,6 @@
 ##############################################################################
 
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
-import transaction
 import unittest
 from zLOG import LOG
 from Testing import ZopeTestCase
@@ -48,8 +47,6 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
       'erp5_pdm',
       'erp5_simulation',
       'erp5_trade',
-      'erp5_simulation_legacy',
-      'erp5_trade_simulation_legacy',
       'erp5_syncml',
       'erp5_tiosafe_core',
       'erp5_tiosafe_pdm',
@@ -107,7 +104,6 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
       if sync.getValidationState() != "validated":
         sync.validate()
 
-    transaction.commit()
     self.tic()
 
   def beforeTearDown(self):
@@ -117,7 +113,6 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
     for connector in self.oxatis.contentValues(portal_type="Web Service Connector"):
       # use the test connector
       connector.setTransport("oxatis")
-    transaction.commit()
     self.tic()
 
 
@@ -127,12 +122,10 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
     for im in ['organisation_module', 'delivered_organisation_module',
                'person_module', 'delivered_person_module',]:
       LOG("RUNNING SYNCHRO FOR %s" %(im), 300, "")
-      transaction.commit()
       self.tic()
       self.oxatis.IntegrationSite_synchronize(reset=reset, synchronization_list=[im,],
                                               batch_mode=True)
 
-      transaction.commit()
       self.tic()
       if conflict_dict and conflict_dict.has_key(im):
         nb_pub_conflict, nb_sub_conflict, in_conflict = conflict_dict[im]
@@ -165,12 +158,10 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
 
   def _runAndCheckResourceSynchronization(self, reset=True):
     # run synchronization
-    transaction.commit()
     self.tic()
     self.oxatis.IntegrationSite_synchronize(reset=reset, synchronization_list=['product_module',],
                                             batch_mode=True)
 
-    transaction.commit()
     self.tic()
     # Check fix point
     for im in ['product_module']:
@@ -219,7 +210,6 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
       else:
         if person.getValidationState() == "validated":
           person.invalidate()
-    transaction.commit()
     self.tic()
     # Check initial data
     self.assertEqual(len(self.portal.oxatis_test_module.contentValues(portal_type="Oxatis Test Person")), 6)
@@ -454,7 +444,6 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
     # Delete products
     prod_ids = [x for x in self.portal.product_module.objectIds() if x != self.default_resource_id]
     self.portal.product_module.manage_delObjects(prod_ids)
-    transaction.commit()
     self.tic()
     # Check initial data
     for product in self.portal.oxatis_test_module.contentValues(portal_type="Oxatis Test Product"):
@@ -464,7 +453,6 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
       else:
         if product.getValidationState() == "validated":
           product.invalidate()
-    transaction.commit()
     self.tic()
 
     self.assertEqual(len(self.portal.oxatis_test_module.searchFolder(portal_type="Oxatis Test Product",
@@ -502,7 +490,6 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
     for product in self.portal.oxatis_test_module.contentValues(portal_type="Oxatis Test Product"):
       if product.getValidationState() != "validated":
         product.validate()
-    transaction.commit()
     self.tic()
 
     self.assertEqual(len(self.portal.oxatis_test_module.searchFolder(portal_type="Oxatis Test Product",
@@ -545,7 +532,6 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
     self.portal.sale_order_module.manage_delObjects(so_ids)
     # Define date on integration site
     self.oxatis.edit(stop_date="2010/12/01")
-    transaction.commit()
     self.tic()
     # Check initial data
     self.assertEqual(len(self.portal.oxatis_test_module.contentValues(portal_type="Oxatis Test Sale Order")), 2)
@@ -558,7 +544,6 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
     # run synchronization
     self.oxatis.IntegrationSite_synchronize(reset=True, synchronization_list=['sale_order_module',],
                                             batch_mode=True)
-    transaction.commit()
     self.tic()
 
     # Check fix point
@@ -594,14 +579,12 @@ class TestOxatisSynchronization(ERP5TypeTestCase):
 
     # Change date
     self.oxatis.edit(stop_date="2010/12/31")
-    transaction.commit()
     self.tic()
 
     # run synchronization
     self.oxatis.IntegrationSite_synchronize(reset=False,
                                             synchronization_list=['sale_order_module',],
                                             batch_mode=True)
-    transaction.commit()
     self.tic()
     self.checkConflicts('sale_order_module')
     # Check fix point

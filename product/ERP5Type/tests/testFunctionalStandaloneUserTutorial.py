@@ -29,14 +29,36 @@
 
 import os
 import unittest
-import transaction
 
 from Products.ERP5Type.tests.ERP5TypeFunctionalTestCase import \
         ERP5TypeFunctionalTestCase
 
+BASE_REMOTE_SELENIUM_TEST_URL_LIST = [
+     "http://www.erp5.com/user-Howto.Create.Persons/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-Howto.Create.Organisations/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-Howto.Link.Persons.and.Organisations/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-Howto.Create.Campaigns/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-Howto.Create.Outgoing.Events/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-Howto.Post.Outgoing.Events/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-Howto.Manage.Support.Request/TestPage_viewSeleniumTest",
+
+     # Part 2 - PDM, Trade and simulation related tests
+     "http://www.erp5.com/user-Howto.Create.and.Manage.Products/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-Howto.Create.Trade.Conditions/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-Howto.Create.Sale.Orders/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-Howto.Manage.Packing.Lists/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-Howto.Manage.Invoices/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-Howto.Create.A.Payment/TestPage_viewSeleniumTest",
+
+     # Extra Tests, Additional Tests not yet related to any previous tutorial
+     "http://www.erp5.com/user-HowTo.Use.FullText.Search-TESTONLY/TestPage_viewSeleniumTest",
+     "http://www.erp5.com/user-HowTo.Change.Language-TESTONLY/TestPage_viewSeleniumTest"
+]
+
 class TestZeleniumStandaloneUserTutorial(ERP5TypeFunctionalTestCase):
 
   run_only = "user_tutorial_zuite"
+  remote_code_url_list = BASE_REMOTE_SELENIUM_TEST_URL_LIST
 
   def getBusinessTemplateList(self):
     """
@@ -50,11 +72,17 @@ class TestZeleniumStandaloneUserTutorial(ERP5TypeFunctionalTestCase):
             'erp5_trade', 'erp5_pdm', 'erp5_ooo_import',
             'erp5_accounting', 'erp5_invoicing',
             'erp5_simplified_invoicing', 'erp5_project',
-            'erp5_simulation', 'erp5_simulation_test',
+            'erp5_simulation',
+            'erp5_configurator_standard_solver',
+            'erp5_configurator_standard_trade_template',
+            'erp5_configurator_standard_accounting_template',
+            'erp5_configurator_standard_invoicing_template',
+            'erp5_simulation_test',
             'erp5_ingestion', 'erp5_ingestion_mysql_innodb_catalog',
             'erp5_web', 'erp5_dms', 'erp5_credential',
             'erp5_rss_style', 'erp5_discussion',
             'erp5_l10n_fr', 'erp5_crm',
+            'erp5_accounting_ui_test',
             'erp5_user_tutorial_ui_test',
            )
 

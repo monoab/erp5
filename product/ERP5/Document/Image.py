@@ -51,6 +51,8 @@ from OFS.Image import Image as OFSImage
 from OFS.Image import getImageInfo
 from zLOG import LOG, WARNING
 
+from Products.ERP5Type.ImageUtil import transformUrlToDataURI
+
 # import mixin
 from Products.ERP5.mixin.text_convertable import TextConvertableMixin
 
@@ -262,6 +264,11 @@ class Image(TextConvertableMixin, File, OFSImage):
     """
     Implementation of conversion for Image files
     """
+    if format == 'svg' and self.getContentType()=='image/svg+xml':
+      # SVG format is a textual data which can be returned as it is
+      # so client (browser) can draw an image out of it
+      return self.getContentType(), self.getData()
+
     if format in VALID_TEXT_FORMAT_LIST:
       try:
         return self.getConversion(format=format)
@@ -311,16 +318,15 @@ class Image(TextConvertableMixin, File, OFSImage):
 
   def _resize(self, quality, width, height, format, resolution, frame):
     """Resize and resample photo."""
-    newimg = StringIO()
-
-    parameter_list = ['convert']
-    parameter_list.extend(['-colorspace', 'RGB'])
+    parameter_list = ['convert', '-colorspace', 'RGB',
+                                 '-quality', str(quality),
+                                 '-geometry', '%sx%s' % (width, height)]
     if format not in VALID_TRANSPARENT_IMAGE_FORMAT_LIST:
-      parameter_list.extend(['-alpha', 'off'])
+      # ImageMagick way to remove transparent that works with multiple
+      # images. http://www.imagemagick.org/Usage/masking/#remove
+      parameter_list += '-bordercolor', 'white', '-border', '0'
     if resolution:
-      parameter_list.extend(['-density', '%sx%s' % (resolution, resolution)])
-    parameter_list.extend(['-quality', str(quality)])
-    parameter_list.extend(['-geometry', '%sx%s' % (width, height)])
+      parameter_list += '-density', '%sx%s' % (resolution, resolution)
     if frame is not None:
       parameter_list.append('-[%s]' % frame)
     else:
@@ -331,31 +337,24 @@ class Image(TextConvertableMixin, File, OFSImage):
     else:
       parameter_list.append('-')
 
+    data = str(self.getData())
+    if self.getContentType() == "image/svg+xml":
+      data = transformUrlToDataURI(data)
+
     process = subprocess.Popen(parameter_list,
                                stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE,
                                close_fds=True)
-    imgin, imgout, err = process.stdin, process.stdout, process.stderr
-
-    def writeData(stream, data):
-      if isinstance(data, str):
-        stream.write(str(self.getData()))
-      else:
-        # Use PData structure to prevent
-        # consuming too much memory
-        while data is not None:
-          stream.write(data.data)
-          data = data.next
-
-    writeData(imgin, self.getData())
-    imgin.close()
-    newimg.write(imgout.read())
-    imgout.close()
-    if not newimg.tell():
-      raise ConversionError('Image conversion failed (%s).' % err.read())
-    newimg.seek(0)
-    return newimg
+    try:
+        # XXX: The only portable way is to pass what stdin.write can accept,
+        #      which is a string for PIPE.
+        image, err = process.communicate(data)
+    finally:
+        del process
+    if image:
+      return StringIO(image)
+    raise ConversionError('Image conversion failed (%s).' % err)
 
   def _getDisplayData(self, format, quality, resolution, frame, image_size):
     """Return raw photo data for given display."""

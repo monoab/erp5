@@ -27,12 +27,12 @@
 ##############################################################################
 
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
-import transaction
 import unittest
 from zLOG import LOG
 from Testing import ZopeTestCase
 from AccessControl.SecurityManagement import newSecurityManager
 import os
+from Products.ERP5Type.tests.backportUnittest import expectedFailure
 
 class TestUbercartSynchronization(ERP5TypeTestCase):
   """
@@ -46,8 +46,6 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
         'erp5_pdm',
         'erp5_trade',
         'erp5_simulation',
-        'erp5_simulation_legacy',
-        'erp5_trade_simulation_legacy',
         'erp5_syncml',
         'erp5_tiosafe_core',
         'erp5_tiosafe_test',
@@ -104,7 +102,6 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
       if sync.getValidationState() != "validated":
         sync.validate()
 
-    transaction.commit()
     self.tic()
 
   def beforeTearDown(self):
@@ -114,7 +111,6 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
     for connector in self.ubercart.contentValues(portal_type="Web Service Connector"):
       # use the test connector
       connector.setTransport("ubercart")
-    transaction.commit()
     self.tic()
 
 
@@ -124,12 +120,10 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
     for im in ['organisation_module','delivered_organisation_module',\
 		'person_module', 'delivered_person_module']:
       LOG("RUNNING SYNCHRO FOR %s" %(im), 300, "")
-      transaction.commit()
       self.tic()
       self.ubercart.IntegrationSite_synchronize(reset=reset, synchronization_list=[im,],
                                               batch_mode=True)
 
-      transaction.commit()
       self.tic()
       if conflict_dict and conflict_dict.has_key(im):
         nb_pub_conflict, nb_sub_conflict, in_conflict = conflict_dict[im]
@@ -154,13 +148,11 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
 
   def _runAndCheckResourceSynchronization(self, reset=True, conflict_dict=None):
     # run synchronization
-    transaction.commit()
     self.tic()
     LOG("RUNNING SYNCHRO FOR product_module", 300, "")
     self.ubercart.IntegrationSite_synchronize(reset=reset, synchronization_list=['product_module',],
                                             batch_mode=True)
 
-    transaction.commit()
     self.tic()
     # Check fix point
     for im in ['product_module',]:
@@ -211,7 +203,6 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
       if person.getId() != self.default_node_id and person.getValidationState() != "validated":
         person.validate()
 
-    transaction.commit()
     self.tic()
     # Check initial data
     self.assertEqual(len(ubercart_test_module.contentValues(portal_type="Ubercart Test Person")), 2)
@@ -390,13 +381,11 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
     
     prod_ids = [x for x in self.portal.product_module.objectIds() if x != self.default_resource_id]
     self.portal.product_module.manage_delObjects(prod_ids)
-    transaction.commit()
     self.tic()
     # Check initial data
     for product in self.portal.ubercart_test_module.contentValues(portal_type="Ubercart Test Product"):
       if product.getValidationState() != "validated":
         product.validate()
-    transaction.commit()
     self.tic()
 
     self.assertEqual(len(self.portal.ubercart_test_module.contentValues(portal_type="Ubercart Test Product",
@@ -462,7 +451,6 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
       if product_test.getTitle() == "Fleure":
 	flower_test = product_test
         flower_test.objectValues()[0].setCategory("Catalog/Fleure/Rose")
-	transaction.commit()
 	self.tic()
 
     
@@ -484,7 +472,6 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
     if flower is not None and flower_test is not None:
       deleted_cat_list = [c.getId() for c in flower_test.objectValues()]
       flower_test.manage_delObjects(deleted_cat_list)
-      transaction.commit()
       self.tic()
       tiosafe_category_list = flower.contentValues()
       plugin_category_list = flower_test.contentValues()
@@ -506,7 +493,6 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
       piv = flower.newContent(portal_type="Product Individual Variation")
       piv.setTitle("Fleure/Calice")
       piv.setVariationBaseCategory("collection")
-      transaction.commit()
       self.tic()
     
     if flower is not None and flower_test is not None:
@@ -532,7 +518,6 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
     if flower is not None and flower_test is not None:
       flower.objectValues()[0].setTitle("Fleure/Samanta/Ndiondome")
       flower.objectValues()[0].setVariationBaseCategory("collection")
-      transaction.commit()
       self.tic()
       category = flower.objectValues()[0].getTitle()
       category_test = flower_test.objectValues()[0].getCategory()
@@ -602,7 +587,6 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
     self.portal.sale_order_module.manage_delObjects(so_ids)
     # Define date on integration site
     self.ubercart.edit(stop_date="2010/12/01")
-    transaction.commit()
     self.tic()
     # Check initial data
     self.assertEqual(len(self.portal.ubercart_test_module.contentValues(portal_type="Ubercart Test Sale Order")), 1)
@@ -615,7 +599,6 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
     # run synchronization
     self.ubercart.IntegrationSite_synchronize(reset=True, synchronization_list=['sale_order_module',],
                                             batch_mode=True)
-    transaction.commit()
     self.tic()
 
     # Check fix point
@@ -649,13 +632,11 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
       self.assertNotEqual(sale_order.getDestinationAdministration(), None)
     # Change date
     self.ubercart.edit(stop_date="2010/10/31")
-    transaction.commit()
     self.tic()
 
     # run synchronization
     self.ubercart.IntegrationSite_synchronize(reset=False, synchronization_list=['sale_order_module',],
                                             batch_mode=True)
-    transaction.commit()
     self.tic()
     self.checkConflicts('sale_order_module')
     # Check fix point
@@ -698,7 +679,7 @@ class TestUbercartSynchronization(ERP5TypeTestCase):
         self.assertNotEqual(sale_order.getDestinationAdministration(), self.ubercart.getDestination())
 
 
-
+  @expectedFailure
   def testFullSync(self):
     self.runPersonSync()
     self.runProductSync()

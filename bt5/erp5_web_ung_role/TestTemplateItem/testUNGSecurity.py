@@ -72,7 +72,7 @@ class TestUNGSecurity(ERP5TypeTestCase):
   def beforeTearDown(self):
     person_module = self.getPersonModule()
     person_module.manage_delObjects(list(person_module.objectIds()))
-    self.stepTic()
+    self.tic()
 
   def afterSetUp(self):
     if self.portal.portal_preferences.ung_preference.getPreferenceState() != "global":
@@ -82,11 +82,12 @@ class TestUNGSecurity(ERP5TypeTestCase):
     assignment = person.newContent(portal_type='Assignment')
     assignment.setFunction("function/ung_user")
     assignment.open()
-    self.stepTic()
+    self.tic()
 
   def testERP5Site_createNewWebDocumentAsAnonymous(self):
     """Test use script ERP5Site_createNewWebDocument as Anonymous User"""
     self.logout()
+    self.changeSkin("UNGDoc")
     self.assertRaises(Unauthorized,
                       self.portal.ERP5Site_createNewWebDocument,
                       ("web_page_template"))
@@ -97,8 +98,9 @@ class TestUNGSecurity(ERP5TypeTestCase):
     self.login("ung_user")
     web_page = self.portal.portal_catalog.getResultValue(portal_type="Web Page")
     self.assertEquals(web_page, None)
+    self.changeSkin("UNGDoc")
     self.portal.ERP5Site_createNewWebDocument("web_page_template")
-    self.stepTic()
+    self.tic()
     web_page = self.portal.portal_catalog.getResultValue(portal_type="Web Page")
     self.assertEquals(web_page.getReference(), "default-Web.Page.Reference")
     self.assertEquals(len(self.portal.web_page_module.searchFolder()), 1)
@@ -111,18 +113,20 @@ class TestUNGSecurity(ERP5TypeTestCase):
     assignment = person.newContent(portal_type='Assignment')
     assignment.setFunction("function/ung_user")
     assignment.open()
-    self.stepTic()
+    self.tic()
     self.login("ung_user")
+    self.changeSkin("UNGDoc")
     self.portal.ERP5Site_createNewWebDocument("web_table_template")
-    self.stepTic()
+    self.tic()
     web_table = self.portal.portal_catalog.getResultValue(portal_type="Web Table")
     web_table.setReference("share-Web.Table")
-    self.stepTic()
+    self.tic()
     self.login("ung_user2")
     self.assertEquals(len(self.portal.web_page_module.searchFolder()), 0)
     ung_web_site = self.portal.web_site_module.ung
+    self.changeSkin("UNGDoc")
     web_table = ung_web_site.ERP5Site_userFollowUpWebPage("share-Web.Table")
-    self.stepTic()
+    self.tic()
     self.assertNotEquals(web_table.getFollowUpList(), [])
     self.assertEquals(len(self.portal.web_page_module.searchFolder()), 1)
     web_table = self.portal.web_page_module.searchFolder()[0]
@@ -133,15 +137,18 @@ class TestUNGSecurity(ERP5TypeTestCase):
   def testBase_updateCalendarEventListWithERP5User(self):
     """ Test script Base_updateCalendarEventList with erp5 user"""
     self.logout()
+    self.changeSkin("UNGDoc")
     self.assertEquals('{"events": []}',
                       self.portal.Base_updateCalendarEventList("list"))
     self.login("ung_user")
+    self.changeSkin("UNGDoc")
     event_list = json.loads(self.portal.Base_updateCalendarEventList("list"))
     self.assertEquals(event_list.get("events"), [])
     event = self.portal.event_module.newContent(portal_type="Note")
     event.setStartDate(DateTime())
     event.setStopDate(DateTime()+1)
-    self.stepTic()
+    self.tic()
+    self.changeSkin("UNGDoc")
     event_dict = json.loads(self.portal.Base_updateCalendarEventList("list"))
     event_list = event_dict.get("events")
     self.assertEquals(event_list[0][-2], "Note")
@@ -150,8 +157,9 @@ class TestUNGSecurity(ERP5TypeTestCase):
                      CalendarTitle="One Sample",
                      portal_type="Web Message")
     self.portal.REQUEST.form.update(form_dict)
+    self.changeSkin("UNGDoc")
     self.portal.Base_updateCalendarEventList("add")
-    self.stepTic()
+    self.tic()
     web_message = self.portal.portal_catalog.getResultValue(portal_type="Web Message")
     self.assertEquals(web_message.getTitle(), "One Sample")
     self.portal.REQUEST.form.clear()
@@ -160,15 +168,17 @@ class TestUNGSecurity(ERP5TypeTestCase):
                      title="Buy Coffee",
                      event_id=web_message.getId())
     self.portal.REQUEST.form.update(form_dict)
+    self.changeSkin("UNGDoc")
     self.portal.Base_updateCalendarEventList("update")
-    self.stepTic()
+    self.tic()
     self.assertEquals(web_message.getTitle(), "Buy Coffee")
     self.portal.REQUEST.form.clear()
     form_dict = dict(title=web_message.getTitle(),
                      id=web_message.getId())
     self.portal.REQUEST.form.update(form_dict)
+    self.changeSkin("UNGDoc")
     self.portal.Base_updateCalendarEventList("remove")
-    self.stepTic()
+    self.tic()
     web_message = self.portal.portal_catalog.getResultValue(portal_type="Web Message")
     self.assertEquals(web_message, None)
   
@@ -179,8 +189,9 @@ class TestUNGSecurity(ERP5TypeTestCase):
                      lastname="My Last Name",
                      password="ung_password")
     self.portal.REQUEST.form.update(form_dict)
+    self.changeSkin("UNGDoc")
     self.portal.ERPSite_createUNGUser()
-    self.stepTic()
+    self.tic()
     self.login("ERP5TypeTestCase")
     person = self.portal.portal_catalog.getResultValue(portal_type="Person")
     self.assertEquals(person.getLastName(), "My Last Name")
@@ -193,23 +204,27 @@ class TestUNGSecurity(ERP5TypeTestCase):
     assignment = person.newContent(portal_type='Assignment')
     assignment.setFunction("function/ung_user")
     assignment.open()
-    self.stepTic()
+    self.tic()
     self.login("ung_user")
+    self.changeSkin("UNGDoc")
     preference_dict = json.loads(self.portal.Base_getPreferencePathList())
     self.assertEquals(preference_dict, {u'preference': u'portal_preferences/1'})
     self.login("ung_user2")
+    self.changeSkin("UNGDoc")
     preference_dict = json.loads(self.portal.Base_getPreferencePathList())
     self.assertEquals(preference_dict, {u'preference': u'portal_preferences/2'})
   
   def testWebPage_shareDocument(self):
     """ """
     self.login("ung_user")
+    self.changeSkin("UNGDoc")
     self.portal.ERP5Site_createNewWebDocument("web_page_template")
-    self.stepTic()
+    self.tic()
     web_page = self.portal.portal_catalog.getResultValue(portal_type="Web Page")
     self.assertEquals(web_page.getValidationState(), "draft")
+    self.changeSkin("UNGDoc")
     response = web_page.WebPage_shareDocument()
-    self.stepTic()
+    self.tic()
     self.assertEquals(response, "".join((self.portal.absolute_url(),
                                          "/?key=",
                                          web_page.getReference())))

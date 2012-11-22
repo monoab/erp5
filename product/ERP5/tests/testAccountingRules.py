@@ -43,7 +43,6 @@ way it is used in the invoice related simulation.
 import unittest
 import random
 
-import transaction
 
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from Products.ERP5Type.tests.Sequence import SequenceList
@@ -85,8 +84,6 @@ class TestAccountingRulesMixin:
   applied_rule_portal_type             = "Applied Rule"
   simulation_movement_portal_type      = "Simulation Movement"
   accounting_rule_cell_portal_type     = "Accounting Rule Cell"
-  invoice_transaction_rule_portal_type \
-                    = "Invoice Transaction Rule"
 
   payment_transaction_portal_type      = "Payment Transaction"
   payment_transaction_line_definition_list = (
@@ -202,7 +199,7 @@ class TestAccountingRules(TestAccountingRulesMixin, ERP5TypeTestCase):
             'default_invoice_transaction_simulation_rule')
     if invoice_transaction_rule.getValidationState() == 'validated':
       invoice_transaction_rule.invalidate()
-      transaction.commit()
+      self.commit()
 
     # delete anything inside the rule first
     # clear the message queue, so that it does not contains unexistant paths
@@ -210,7 +207,7 @@ class TestAccountingRules(TestAccountingRulesMixin, ERP5TypeTestCase):
     invoice_transaction_rule.deleteContent(
                 [x for x in invoice_transaction_rule.objectIds()])
     self.assertEquals(len(invoice_transaction_rule.objectValues()), 0)
-    transaction.commit()
+    self.commit()
 
     # and add new content, predicate product_line
     predicate_product_notebook = invoice_transaction_rule.newContent(
@@ -270,8 +267,6 @@ class TestAccountingRules(TestAccountingRulesMixin, ERP5TypeTestCase):
   def stepUpdateInvoiceTransactionRuleMatrix(self, sequence, **kw) :
     """Creates/updates the matrix of the sale invoice transaction rule """
     invoice_transaction_rule = sequence.get('invoice_transaction_rule')
-    base_id = 'movement'
-    kwd = {'base_id': base_id}
 
     # update the matrix, generates the accounting rule cells
     invoice_transaction_rule.edit()
@@ -280,31 +275,19 @@ class TestAccountingRules(TestAccountingRulesMixin, ERP5TypeTestCase):
 
     # check the accounting rule cells inside the matrix
     cell_list = invoice_transaction_rule.contentValues(
-                filter = {'portal_type':self.accounting_rule_cell_portal_type})
-    self.assertEqual(len(cell_list), 4)
-
-    # In the matrix, cells are named on the scheme :
-    # ${base_id} + '_'.join(predicate_dimension ordered by int_index)
-    product_notebook_region_france_cell = getattr(invoice_transaction_rule,
-                                          '%s_0_0'%base_id, None)
-    product_notebook_region_africa_cell = getattr(invoice_transaction_rule,
-                                          '%s_0_1'%base_id, None)
-    product_barebone_region_france_cell = getattr(invoice_transaction_rule,
-                                          '%s_1_0'%base_id, None)
-    product_barebone_region_africa_cell = getattr(invoice_transaction_rule,
-                                          '%s_1_1'%base_id, None)
-
-    self.failUnless(product_notebook_region_france_cell != None)
-    self.failUnless(product_notebook_region_africa_cell != None)
-    self.failUnless(product_barebone_region_france_cell != None)
-    self.failUnless(product_barebone_region_africa_cell != None)
-
-    sequence.edit(
-      product_notebook_region_france_cell = product_notebook_region_france_cell,
-      product_notebook_region_africa_cell = product_notebook_region_africa_cell,
-      product_barebone_region_france_cell = product_barebone_region_france_cell,
-      product_barebone_region_africa_cell = product_barebone_region_africa_cell,
+                portal_type=self.accounting_rule_cell_portal_type)
+    kw = dict(
+      product_notebook_region_france_cell=invoice_transaction_rule.getCell(
+        'product_notebook', 'region_france', base_id='movement'),
+      product_notebook_region_africa_cell=invoice_transaction_rule.getCell(
+        'product_notebook', 'region_africa', base_id='movement'),
+      product_barebone_region_france_cell=invoice_transaction_rule.getCell(
+        'product_barebone', 'region_france', base_id='movement'),
+      product_barebone_region_africa_cell=invoice_transaction_rule.getCell(
+        'product_barebone', 'region_africa', base_id='movement'),
     )
+    self.assertSameSet(cell_list, kw.values())
+    sequence.edit(**kw)
 
   def stepValidateInvoiceTransaction(self, sequence, **kw) :
     """validates the sale invoice transaction rule"""
@@ -503,7 +486,7 @@ class TestAccountingRules(TestAccountingRulesMixin, ERP5TypeTestCase):
                            'default_payment_simulation_rule')
     if payment_rule.getValidationState() == 'validated':
       payment_rule.invalidate()
-      transaction.commit()
+      self.commit()
 
     # delete anything inside the rule first
     # clear the message queue, so that it does not contains unexistant paths
@@ -511,7 +494,7 @@ class TestAccountingRules(TestAccountingRulesMixin, ERP5TypeTestCase):
     payment_rule.deleteContent(
       [x.getId() for x in payment_rule.objectValues(
       portal_type=['Predicate', self.accounting_rule_cell_portal_type])])
-    transaction.commit()
+    self.commit()
 
     # and add a new predicate
     payment_rule.newContent(
@@ -545,7 +528,6 @@ class TestAccountingRules(TestAccountingRulesMixin, ERP5TypeTestCase):
           source=line_source_id,
           destination=line_destination_id)
     payment_rule.validate()
-    transaction.commit()
     self.tic()
 
   def stepCreateEmptyInvoice(self, sequence, **kw) :
@@ -694,15 +676,6 @@ class TestAccountingRules(TestAccountingRulesMixin, ERP5TypeTestCase):
     invoice_line = sequence.get('invoice_line')
     invoice._delObject(invoice_line.getId())
     invoice.recursiveReindexObject()
-
-  def stepUpdateAppliedRule(self, sequence, **kw) :
-    """ update the applied rule for the invoice. In the UI, the call to
-    updateAppliedRule is made in an interraction workflow when you edit
-    an invoice or its content."""
-    # edit is done through interaction workflow, so we just call 'edit'
-    # on the invoice (but this is not necessary)
-    invoice=sequence.get('invoice')
-    invoice.edit()
 
   def stepCreateSimpleInvoiceTwoLines(self, sequence, **kw) :
     """
@@ -1802,7 +1775,7 @@ class TestAccountingRules(TestAccountingRulesMixin, ERP5TypeTestCase):
   @newSimulationExpectedFailure
   def test_05a_SimpleInvoiceReExpandAddLine(self, quiet=QUIET,
         run=RUN_ALL_TESTS):
-    """ Add a new line then updateAppliedRule.
+    """ Add a new line then updateSimulation.
     Create an empty invoice, plan, add a line so that this
     invoice is the same as `SimpleInvoice`, confirm it then check
     accounting lines
@@ -1969,7 +1942,7 @@ class TestAccountingRules(TestAccountingRulesMixin, ERP5TypeTestCase):
     if not run:
       return
     if not quiet:
-      message = 'Test Simple Invoice Rule (many updateAppliedRule)'
+      message = 'Test Simple Invoice Rule (many updateSimulation)'
       ZopeTestCase._print('\n%s ' % message)
       LOG('Testing... ', INFO, message)
 
@@ -1992,7 +1965,6 @@ class TestAccountingRules(TestAccountingRulesMixin, ERP5TypeTestCase):
       stepTic """ +
       ("""
       stepEditInvoiceLine
-      stepUpdateAppliedRule
       stepTic""" * 4) +
       """
       stepConfirmInvoice

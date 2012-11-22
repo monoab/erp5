@@ -6,12 +6,13 @@ import sys
 class _ERP5(ERP5TypeTestSuite):
   realtime_output = False
   enabled_product_list = ('CMFActivity', 'CMFCategory', 'ERP5', 'ERP5Catalog',
-                          'ERP5eGovSecurity', 'ERP5Form', 'ERP5Legacy',
+                          'ERP5eGovSecurity', 'ERP5Form',
                           'ERP5OOo', 'ERP5Security', 'ERP5SyncML', 'ERP5Type',
                           'ERP5VCS', 'ERP5Wizard', 'Formulator', 'ERP5Workflow',
                           'ERP5Configurator','HBTreeFolder2', 'MailTemplates', 
                           'PortalTransforms', 'TimerService', 'ZLDAPConnection', 
-                          'ZLDAPMethods', 'ZMySQLDA', 'ZMySQLDDA', 'ZSQLCatalog')
+                          'ZLDAPMethods', 'ZMySQLDA', 'ZMySQLDDA', 'ZSQLCatalog', 
+                          'Zelenium')
 
   def enableProducts(self):
     product_set = set(self.enabled_product_list)
@@ -26,6 +27,18 @@ class _ERP5(ERP5TypeTestSuite):
       os.symlink(os.path.join('..', 'products', product),
                  os.path.join('Products', product))
 
+  def _getAllTestList(self):
+    test_list = []
+    for test_path in glob.glob('%s/product/*/tests/test*.py' % sys.path[0]) + \
+                 glob.glob('%s/bt5/*/TestTemplateItem/test*.py' % sys.path[0]):
+      test_case = test_path.split(os.sep)[-1][:-3] # remove .py
+      product = test_path.split(os.sep)[-3]
+      # don't test 3rd party products
+      if product in ('PortalTransforms', 'MailTemplates', 'Zelenium'):
+        continue
+      test_list.append(test_case)
+    return test_list
+
   def update(self):
     self.checkout('products', 'bt5')
     self.enableProducts()
@@ -35,29 +48,19 @@ class PERF(_ERP5):
   allow_restart = True
 
   def getTestList(self):
-    return ('testPerformance',) * 3
-
-  def update(self):
-    self.checkout('products', 'bt5/erp5_base', 'bt5/erp5_ui_test')
-    self.enableProducts()
+    return [x for x in self._getAllTestList() if x.find('Performance')>0]
 
 class ERP5(_ERP5):
   mysql_db_count = 3
 
   def getTestList(self):
     test_list = []
-    for test_path in glob.glob('%s/product/*/tests/test*.py' % sys.path[0]) + \
-                 glob.glob('%s/bt5/*/TestTemplateItem/test*.py' % sys.path[0]):
-      test_case = test_path.split(os.sep)[-1][:-3] # remove .py
-      product = test_path.split(os.sep)[-3]
-      # don't test 3rd party products
-      if product in ('PortalTransforms', 'MailTemplates'):
-        continue
+    for test_case in self._getAllTestList():
       # skip some tests
       if test_case.startswith('testLive') or test_case.startswith('testVifib') \
          or test_case.startswith('testFunctional') \
-         or test_case in ('testPerformance', 'testSimulationPerformance',
-                          'testDmsWithFlare', # XXX(Seb), put it back ASAP
+         or test_case.find('Performance') > 0 \
+         or test_case in ('testERP5LdapCatalog', # XXX (Ivan), until LDAP server is available this test will alway fail
                           'testERP5eGov', # it is not maintained any more
                           'testAccounting_l10n_fr_m9'):
         continue
@@ -108,6 +111,7 @@ class ERP5UserInterface(_ERP5):
       group_dict = search.groupdict()
       status_dict['failure_count'] = int(group_dict['failures'])
       status_dict['test_count'] = int(group_dict['total'])
+      status_dict['skip_count'] = int(group_dict['expected_failure'])
 
     return status_dict
 

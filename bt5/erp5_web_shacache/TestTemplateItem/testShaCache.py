@@ -28,12 +28,11 @@
 ##############################################################################
 
 
-import transaction
 import httplib
 import urlparse
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from ShaCacheMixin import ShaCacheMixin
-
+from Products.ERP5Type.tests.backportUnittest import expectedFailure
 
 class TestShaCache(ShaCacheMixin, ERP5TypeTestCase):
   """
@@ -87,7 +86,6 @@ class TestShaCache(ShaCacheMixin, ERP5TypeTestCase):
     self.assertEqual(result, httplib.CREATED)
     self.assertEqual(data, self.key)
 
-    transaction.commit()
     self.tic()
 
     document = self.portal.portal_catalog.getResultValue(reference=self.key)
@@ -106,7 +104,6 @@ class TestShaCache(ShaCacheMixin, ERP5TypeTestCase):
     self.assertEqual(result, httplib.CREATED)
     self.assertEqual(data, self.key)
 
-    transaction.commit()
     self.tic()
 
     document = self.portal.portal_catalog.getResultValue(reference=self.key)
@@ -121,13 +118,11 @@ class TestShaCache(ShaCacheMixin, ERP5TypeTestCase):
       Check if is allowed to put the same file twice.
     """
     self.postFile()
-    transaction.commit()
     self.tic()
     document = self.portal.portal_catalog.getResultValue(reference=self.key)
     self.assertEquals('published', document.getValidationState())
 
     self.postFile()
-    transaction.commit()
     self.tic()
     self.assertEquals(2, self.portal.portal_catalog.countResults(
       reference=self.key)[0][0])
@@ -137,11 +132,11 @@ class TestShaCache(ShaCacheMixin, ERP5TypeTestCase):
     self.assertEquals('published', document2.getValidationState())
     self.assertEquals('archived', document.getValidationState())
 
+  @expectedFailure
   def test_put_file_twice_no_tic(self):
     self.postFile()
-    transaction.commit()
+    self.commit()
     self.postFile()
-    transaction.commit()
     self.tic()
 
     document_list = self.portal.portal_catalog(reference=self.key)

@@ -20,12 +20,32 @@ from portal_type_class import generatePortalTypeClass
 from accessor_holder import AccessorHolderType
 import persistent_migration
 
-# PersistentBroken can't be reused directly
-# because its « layout differs from 'GhostPortalType' »
-ERP5BaseBroken = type('ERP5BaseBroken', (Broken, ERP5Base), dict(x
-  for x in PersistentBroken.__dict__.iteritems()
-  if x[0] not in ('__dict__', '__module__', '__weakref__')))
+class ERP5BaseBroken(Broken, ERP5Base):
+  # PersistentBroken can't be reused directly
+  # because its « layout differs from 'GhostPortalType' »
 
+  def __metaclass__(name, base, d):
+    d = dict(PersistentBroken.__dict__, **d)
+    for x in '__dict__', '__metaclass__', '__weakref__':
+      del d[x]
+    def get(x):
+      def get(self):
+        d = self.__dict__
+        try:
+          return d.get('__Broken_state__', d)[x]
+        except KeyError:
+          return getattr(self.__class__, x)
+      return property(get)
+    for x in 'id', 'title':
+      d[x] = get(x)
+    return type(name, base, d)
+
+  def __getattr__(self, name):
+    try:
+      return self.__dict__['__Broken_state__'][name]
+    except KeyError:
+      raise AttributeError("state of broken %r object has no %r key"
+                           % (self.__class__.__name__, name))
 
 # the meta class of a derived class must be a subclass of all of its bases:
 # since a portal type derives from both Zope Extension classes and
@@ -137,10 +157,15 @@ class PortalTypeMetaClass(GhostBaseMetaClass, PropertyHolder):
     """
     return meta_class.subclass_register.get(cls, [])
 
-  def getAccessorHolderPropertyList(cls):
+  def getAccessorHolderPropertyList(cls, content=False):
     """
     Get unique properties, by its id, as defined in the accessor holders,
     meaningful for _propertyMap for example
+
+    Properties whose type is 'content' should not be visible in ZMI
+    so they are not returned by default. This would also slow down
+    MovementCollectionDiff._getPropertyList (ERP5 product). However,
+    ERP5TypeInformation.getInstancePropertyAndBaseCategoryList needs them.
 
     @see Products.ERP5Type.Base.Base._propertyMap
     """
@@ -150,9 +175,10 @@ class PortalTypeMetaClass(GhostBaseMetaClass, PropertyHolder):
     for klass in cls.mro():
       if klass.__module__.startswith('erp5.accessor_holder'):
         for property in klass._properties:
-          property_dict.setdefault(property['id'], property)
+          if content or property['type'] != 'content':
+            property_dict.setdefault(property['id'], property)
 
-    return property_dict.values()
+    return property_dict.itervalues()
 
   def resetAcquisition(cls):
     # First, fill the __get__ slot of the class
@@ -211,7 +237,7 @@ class PortalTypeMetaClass(GhostBaseMetaClass, PropertyHolder):
       cls.loadClass()
       return getattr(cls, name)
 
-    raise AttributeError
+    raise AttributeError("'%r' has no attribute '%s'" % (cls, name))
 
   def generatePortalTypeAccessors(cls, site, portal_type_category_list):
     category_tool = getattr(site, 'portal_categories', None)

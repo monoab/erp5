@@ -82,7 +82,7 @@ if load:
         if not live_instance_path:
           backup_path = os.path.basename(backup_path)
         os.symlink(backup_path, full_path)
-elif save and not zeo_client and os.path.exists(data_fs_path):
+elif save and not (neo_storage or zeo_client) and os.path.exists(data_fs_path):
   os.remove(data_fs_path)
 
 for static_dir in static_dir_list:
@@ -94,14 +94,21 @@ zeo_server_pid = None
 node_pid_list = []
 
 ZEvent = sys.modules.get('ZServer.PubCore.ZEvent')
+zrpc = sys.modules.get('ZEO.zrpc.connection')
 def fork():
   pid = os.fork()
   if pid:
-    # recreate the event pipe if it already exists
+    # recreate event pipes that already exist
     for obj in socket_map.values():
-      assert obj is ZEvent.the_trigger
       obj.close()
-      ZEvent.the_trigger = ZEvent.simple_trigger()
+      if obj is ZEvent.the_trigger:
+        ZEvent.the_trigger = ZEvent.simple_trigger()
+      else:
+        assert obj is zrpc.ManagedServerConnection.trigger
+        zrpc.ManagedServerConnection.trigger = zrpc.trigger()
+        zrpc.ManagedClientConnection.trigger.close()
+        zrpc.ManagedClientConnection.trigger = \
+          zrpc.client_trigger = zrpc.trigger(zrpc.client_map)
     # make sure parent and child have 2 different RNG
     instance_random.seed(instance_random.random())
   return pid
@@ -119,16 +126,38 @@ def forkNodes():
 cluster = True
 
 if neo_storage:
-  if load or save or zeo_client:
-    raise Exception("--neo_storage conflicts with --load/save/zeo_client")
+  if zeo_client:
+    sys.exit("--neo_storage conflicts with --zeo_client")
+  demo_storage = load and not save
+  if activity_node > 1 and demo_storage:
+    sys.exit("--save is required when running several"
+             " zope nodes on an existing NEO database")
+  from neo.lib import logging
   from neo.tests.functional import NEOCluster
-  neo_cluster = NEOCluster(range(2), partitions=4, adapter='BTree',
-                           temp_dir=os.getcwd(), verbose=False)
-  sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
-  neo_cluster.start()
-  signal.signal(signal.SIGINT, sigint)
+  logging.backlog()
+  storage_count = 2
+  if load or save:
+      db_list = [os.path.join(instance_home, 'var', 'neo%u.sqlite' % i)
+                 for i in xrange(1, storage_count+1)]
+  else:
+      db_list = [None] * storage_count
+  cwd = os.getcwd()
+  neo_cluster = NEOCluster(db_list, partitions=4, name='erp5/unit_test',
+                           temp_dir=cwd, logger=save,
+                           adapter='SQLite', clear_databases=not load)
   forkNodes()
-  Storage = neo_cluster.getZODBStorage()
+  if node_pid_list is None:
+      save_mysql = None
+  else:
+      cluster = bool(node_pid_list)
+      sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
+      try:
+          neo_cluster.start()
+      finally:
+          signal.signal(signal.SIGINT, sigint)
+  Storage = neo_cluster.getZODBStorage(read_only=demo_storage)
+  if demo_storage:
+      Storage = DemoStorage(base=Storage)
 else:
   neo_cluster = None
   while not zeo_client:
@@ -160,7 +189,6 @@ else:
     break
   else:
     forkNodes()
-    # do not import ClientStorage before forking due to client trigger
     from ZEO.ClientStorage import ClientStorage
     Storage = ClientStorage(zeo_client)
 

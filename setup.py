@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import glob
 import os
 
-version = '0.3-dev'
+version = '0.4.16'
 name = 'erp5.util'
 long_description = open("README.erp5.util.txt").read() + "\n"
 
@@ -22,6 +22,11 @@ import sys
 python_major_version, python_minor_version = sys.version_info[:2]
 if python_major_version == 2 and python_minor_version < 7:
   benchmark_install_require_list.append('argparse')
+
+# Only build/install erp5.util package, otherwise other directories may
+# be considered as part of erp5.util (such as product)
+package_list = ['erp5.%s' % subpackage for subpackage in find_packages('erp5')]
+package_list.append('erp5')
 
 setup(name=name,
       version=version,
@@ -53,16 +58,21 @@ setup(name=name,
         'scalability_tester': [name+'[benchmark]', 'slapos.tool.nosqltester'],
       },
       zip_safe=True,
-      packages=find_packages(),
+      packages=package_list,
       include_package_data=True,
       entry_points={
         'console_scripts': [
           'testnode = erp5.util.testnode:main [testnode]',
-          'performance_tester_erp5 = erp5.util.benchmark.performance_tester:main [benchmark]',
-          'scalability_tester_erp5 = erp5.util.benchmark.scalability_tester:main [scalability_tester]',
-          'generate_erp5_tester_report = erp5.util.benchmark.report:generateReport [benchmark-report]',
+          'performance_tester_erp5 = '\
+            'erp5.util.benchmark.performance_tester:main [benchmark]',
+          'scalability_tester_erp5 = '\
+            'erp5.util.benchmark.scalability_tester:main [scalability_tester]',
+          'generate_erp5_tester_report = '\
+            'erp5.util.benchmark.report:generateReport [benchmark-report]',
+          'web_checker_utility = erp5.util.webchecker:web_checker_utility'
         ],
-      }
+      },
+      test_suite='erp5.tests'
     )
 
 # cleanup garbage

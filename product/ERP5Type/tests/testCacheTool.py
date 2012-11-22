@@ -32,12 +32,11 @@ import unittest
 
 from Testing import ZopeTestCase
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
-from Products.ERP5Type.tests.ERP5TypeTestCase import _getPersistentMemcachedServerDict, _getVolatileMemcachedServerDict
+from Products.ERP5Type.tests.ERP5TypeTestCase import _getPersistentMemcachedServerDict
 from Products.ERP5Type.CachePlugins.DummyCache import DummyCache
 from AccessControl.SecurityManagement import newSecurityManager
-from Products.ERP5Type.Cache import CachingMethod
+from Products.ERP5Type.Cache import CachingMethod, DEFAULT_CACHE_SCOPE
 from zLOG import LOG
-import transaction
 
 class TestingCache(DummyCache):
   """A dummy cache that mark cache miss, so that you can later count access
@@ -54,6 +53,7 @@ class TestCacheTool(ERP5TypeTestCase):
 
   cache_duration = 10 # second
   python_script_id = "testCachedMethod"
+  nb_iterations = 60000
 
   def getTitle(self):
     return "Cache Tool"
@@ -71,7 +71,7 @@ class TestCacheTool(ERP5TypeTestCase):
     self.createPersistentMemcachedPlugin()
     self.createCacheFactories()
     self.createCachedMethod()
-    transaction.commit()
+    self.commit()
 
   def login(self):
     uf = self.getPortal().acl_users
@@ -96,12 +96,7 @@ class TestCacheTool(ERP5TypeTestCase):
       self.assertNotEqual(None, portal_type)
 
   def createPersistentMemcachedPlugin(self):
-    portal_memcached = self.getPortal().portal_memcached
-    connection_dict = _getVolatileMemcachedServerDict()
-    url_string = '%(hostname)s:%(port)s' % connection_dict    
-    # setup default volatile distributed memcached
-    portal_memcached.default_memcached_plugin.setUrlString(url_string)
-   
+    portal_memcached = self.portal.portal_memcached
     # setup persistent memcached
     memcached_plugin_id = 'flare'
     if getattr(portal_memcached, memcached_plugin_id, None) is None:
@@ -184,20 +179,13 @@ class TestCacheTool(ERP5TypeTestCase):
   def createCachedMethod(self):
     portal = self.getPortal()
     if getattr(portal, self.python_script_id, None) is not None:
-      return
+      portal.manage_delObjects(ids=[self.python_script_id])
     ## add test cached method
     py_script_params = "value=10000, portal_path=('','erp5'), result=''"
     py_script_body = """
-def veryExpensiveMethod(value):
- ## do something expensive for some time
- ## no 'time.sleep()' available in Zope
- ## so concatenate strings
- s = ""
- for i in range(0, value):
-   s = str(value*value*value) + s
- return value
+portal = context.getPortalObject()
+portal.newCacheCookie('cache_tool_test')
 
-veryExpensiveMethod(value)
 return result
 """
     portal.manage_addProduct['PythonScripts'].manage_addPythonScript(
@@ -229,89 +217,80 @@ return result
                              cache_factory=cf_name)
     self._cacheFactoryInstanceTest(my_cache, cf_name, clear_allowed=False)
 
+
+  def _getCacheCookieValue(self):
+    portal = self.getPortal()
+    return portal.getCacheCookie('cache_tool_test')
+
+  def _callCache(self, my_cache, real_calculation=False, result=""):
+    portal = self.getPortal()
+    before_cookie_value = self._getCacheCookieValue()
+    start = time.time()
+    cached =  my_cache(self.nb_iterations,
+                        portal_path=('', portal.getId()),
+                        result=result)
+    end = time.time()
+    calculation_time = end-start
+    self.assertEquals(cached, result)
+    after_cookie_value = self._getCacheCookieValue()
+    # if there is cache miss, then real calculation is done,
+    # then the cookie is increased with a value 1
+    self.assertEquals(after_cookie_value-before_cookie_value,
+                      int(real_calculation))
+    return calculation_time
+
   def _cacheFactoryInstanceTest(self, my_cache, cf_name, clear_allowed):
     portal = self.getPortal()
     print 
     print "="*40
     print "TESTING:", cf_name
 
-    # if the test fails because your machine is too fast, increase this value.
-    nb_iterations = 30000
     result = 'a short value'
-    portal.portal_caches.clearCacheFactory(cf_name)
+    #portal.portal_caches.clearCacheFactory(cf_name)
+
+    def clearCache():
+      my_cache.delete(self.nb_iterations,
+                    portal_path=('', portal.getId()),
+                    result=result)
+      self.commit()
+
+    # Make sure we do not have values in cache
+    clearCache()
+
+    # redefine callCache to avoid passing parameters all the time
+    def callCache(real_calculation=True):
+      return self._callCache(my_cache, real_calculation=real_calculation,
+                             result=result)
     ## 1st call
-    start = time.time()
-    cached =  my_cache(nb_iterations,
-                       portal_path=('', portal.getId()),
-                       result=result)
-    end = time.time()
-    calculation_time = end-start
+    calculation_time = callCache(real_calculation=True)
     print "\n\tCalculation time (1st call)", calculation_time
-    self.assertEquals(cached, result)
-    transaction.commit()
+    self.commit()
 
     ## 2nd call - should be cached now
-    start = time.time()
-    cached =  my_cache(nb_iterations,
-                       portal_path=('', portal.getId()),
-                       result=result)
-    end = time.time()
-    calculation_time = end-start
+    calculation_time = callCache(real_calculation=False)
     print "\n\tCalculation time (2nd call)", calculation_time
-    self.assertEquals(cached, result)
-    transaction.commit()
-
-    # check if cache works by getting calculation_time for last cache
-    # operation even remote cache must have access time less than a second.
-    # if it's greater than method wasn't previously cached and was calculated
-    # instead
-    self.assertTrue(1.0 > calculation_time, "1.0 <= %s" % calculation_time)
-
-    ## check if equal.
-    self.assertEquals(cached, result)
+    self.commit()
 
     ## OK so far let's clear cache
     if clear_allowed:
       portal.portal_caches.clearCacheFactory(cf_name)
 
       ## 1st call
-      start = time.time()
-      cached =  my_cache(nb_iterations,
-                         portal_path=('', portal.getId()),
-                         result=result)
-      end = time.time()
-      calculation_time = end-start
+      calculation_time = callCache(real_calculation=True)
       print "\n\tCalculation time (after cache clear)", calculation_time
-      ## Cache  cleared shouldn't be previously cached
-      self.assertTrue(1.0 < calculation_time, "1.0 >= %s" % calculation_time)
-      self.assertEquals(cached, result)
-
 
     # Test delete method on CachingMethod
     print "\n\tCalculation time (3rd call)", calculation_time
-    # fill the cache
-    cached =  my_cache(nb_iterations,
-                       portal_path=('', portal.getId()),
-                       result=result)
-    self.assertEquals(cached, result)
+    # make sure cache id filled
+    calculation_time = callCache(real_calculation=False)
 
     # Purge the Caching Method
-    my_cache.delete(nb_iterations,
-                    portal_path=('', portal.getId()),
-                    result=result)
-    transaction.commit()
+    clearCache()
 
     # Check that result is computed
-    start = time.time()
-    cached =  my_cache(nb_iterations,
-                       portal_path=('', portal.getId()),
-                       result=result)
-    end = time.time()
-    calculation_time = end-start
+    calculation_time = callCache(real_calculation=True)
     print "\n\tCalculation time (4th call)", calculation_time
-    self.assertTrue(1.0 < calculation_time, "1.0 >= %s" % calculation_time)
-    self.assertEquals(cached, result)
-    transaction.commit()
+    self.commit()
 
   def test_03_cachePersistentObjects(self):
     # storing persistent objects in cache is not allowed, but this check is
@@ -335,7 +314,6 @@ return result
     print "="*40
     print "TESTING: Concurrent RamCache"
     portal = self.getPortal()
-    nb_iterations = 30000
     result = 'Something short'
 
     py_script_obj = getattr(portal, self.python_script_id)
@@ -348,18 +326,18 @@ return result
                                                  'another_ram_cache_factory',))
     # First call, fill the cache
     start = time.time()
-    cached = ram_cached_method(nb_iterations,
+    cached = ram_cached_method(self.nb_iterations,
                                portal_path=('', portal.getId()),
                                result=result)
     end = time.time()
     calculation_time = end-start
     print "\n\tCalculation time (1st call)", calculation_time
     self.assertEquals(cached, result)
-    transaction.commit()
+    self.commit()
 
     ## 2nd call - should be cached now
     start = time.time()
-    cached = ram_cached_method(nb_iterations,
+    cached = ram_cached_method(self.nb_iterations,
                                portal_path=('', portal.getId()),
                                result=result)
     end = time.time()
@@ -367,13 +345,13 @@ return result
     print "\n\tCalculation time (2nd call)", calculation_time
     self.assertTrue(1.0 > calculation_time, "1.0 <= %s" % calculation_time)
     self.assertEquals(cached, result)
-    transaction.commit()
+    self.commit()
 
     # Clear only another_ram_cache_factory
     portal.portal_caches.clearCacheFactory('another_ram_cache_factory')
     # Call conversion for ram_cache_factory
     start = time.time()
-    cached = ram_cached_method(nb_iterations,
+    cached = ram_cached_method(self.nb_iterations,
                                portal_path=('', portal.getId()),
                                result=result)
     end = time.time()
@@ -381,7 +359,7 @@ return result
     print "\n\tCalculation time (3rd call)", calculation_time
     self.assertTrue(1.0 > calculation_time, "1.0 <= %s" % calculation_time)
     self.assertEquals(cached, result)
-    transaction.commit()
+    self.commit()
 
   def test_05_CheckLongKeysAndLargeValues(self):
     """Check that persistent distributed Cache Plugin can handle keys
@@ -416,7 +394,6 @@ veryExpensiveMethod(value)
 return 'a' * 1024 * 1024 * 25
 """
     py_script_obj.ZPythonScript_edit(py_script_params, py_script_body)
-    nb_iterations = 30000
     result = 'a' * 1024 * 1024 * 25 # 25 MB
     long_parameter = 'a' * 1024
 
@@ -443,27 +420,27 @@ return 'a' * 1024 * 1024 * 25
 
     #First call, fill the cache
     start = time.time()
-    cached = cached_method(nb_iterations,
+    cached = cached_method(self.nb_iterations,
                            long_parameter=long_parameter)
     end = time.time()
     calculation_time = end-start
     print "\n\tCalculation time (1st call)", calculation_time
     self.assertEquals(cached, result)
-    transaction.commit()
+    self.commit()
 
     # Check that Cache plugin create a second connection in pool
     self.assertEquals(2, len(connection_pool.local_dict))
 
     ## 2nd call - should be cached now
     start = time.time()
-    cached = cached_method(nb_iterations,
+    cached = cached_method(self.nb_iterations,
                            long_parameter=long_parameter)
     end = time.time()
     calculation_time = end-start
     print "\n\tCalculation time (2nd call)", calculation_time
     self.assertTrue(1.0 > calculation_time, "1.0 <= %s" % calculation_time)
     self.assertEquals(cached, result)
-    transaction.commit()
+    self.commit()
 
   def test_06_CheckCacheExpiration(self):
     """Check that expiracy is well handle by Cache Plugins
@@ -472,7 +449,6 @@ return 'a' * 1024 * 1024 * 25
     print "="*40
     print "TESTING: Cache Expiration Time"
     portal = self.getPortal()
-    nb_iterations = 30000
 
     py_script_obj = getattr(portal, self.python_script_id)
 
@@ -480,27 +456,17 @@ return 'a' * 1024 * 1024 * 25
                           'distributed_persistent_cache_factory')
     for cache_factory in cache_factory_list:
       print '\n\t==> %s' % cache_factory
-      cached_method = CachingMethod(py_script_obj,
+      my_cache = CachingMethod(py_script_obj,
                                'py_script_obj',
                                cache_factory=cache_factory)
 
       # First call, fill the cache
-      start = time.time()
-      cached_method(nb_iterations, portal_path='something')
-      transaction.commit()
-      end = time.time()
-      calculation_time = end-start
+      calculation_time = self._callCache(my_cache, real_calculation=True)
       print "\n\tCalculation time (1st call)", calculation_time
-      self.assertTrue(calculation_time > 1.0, "%s <= 1.0" % calculation_time)
 
       ## 2nd call - should be cached now
-      start = time.time()
-      cached = cached_method(nb_iterations, portal_path='something')
-      transaction.commit()
-      end = time.time()
-      calculation_time = end-start
+      calculation_time = self._callCache(my_cache, real_calculation=False)
       print "\n\tCalculation time (2nd call)", calculation_time
-      self.assertTrue(calculation_time < 1.0, "%s >= 1.0" % calculation_time)
 
       # Wait expiration period then check that value is computed
       # .1 is an additional epsilon delay to work around time precision issues
@@ -509,13 +475,85 @@ return 'a' * 1024 * 1024 * 25
       time.sleep(time_left_to_wait)
 
       # Call conversion for ram_cache_factory
-      start = time.time()
-      cached = cached_method(nb_iterations, portal_path='something')
-      transaction.commit()
-      end = time.time()
-      calculation_time = end-start
+      calculation_time = self._callCache(my_cache, real_calculation=True)
       print "\n\tCalculation time (3rd call)", calculation_time
-      self.assertTrue(calculation_time > 1.0, "%s <= 1.0" % calculation_time)
+
+  def test_06_CheckCacheBag(self):
+    """
+      Check Cache Bag
+    """
+    portal_caches = self.portal.portal_caches
+    cache_factory = portal_caches.newContent(portal_type="Cache Factory",
+                                         cache_duration=3600)
+    cache_bag = cache_factory.newContent(portal_type="Cache Bag",
+                                         cache_duration=3600)
+
+    cache_plugin1 = cache_bag.newContent(portal_type="Ram Cache")
+    cache_plugin1.setIntIndex(0)
+
+    cache_plugin2 = cache_bag.newContent(portal_type="Ram Cache")
+    cache_plugin2.setIntIndex(1)
+    self.tic()
+    portal_caches.updateCache()
+
+    # test proper init
+    ram_cache_factory_plugin_list = cache_bag.getRamCacheFactoryPluginList()
+    self.assertEqual(2, len(ram_cache_factory_plugin_list))
+
+    # test get / set API
+    cache_bag.set('x', 'value_fox_x')
+    self.assertEqual('value_fox_x', cache_bag.get('x'))
+
+    # test that only first cache plugin is used to set
+    self.assertEqual('value_fox_x',
+                     ram_cache_factory_plugin_list[0].get('x',DEFAULT_CACHE_SCOPE).getValue())
+    self.assertRaises(KeyError, ram_cache_factory_plugin_list[1].get, 'x', DEFAULT_CACHE_SCOPE)
+
+    # check hot copy happens from second in order plugin to first
+    ram_cache_factory_plugin_list[1].set('y', DEFAULT_CACHE_SCOPE, 'value_for_y', cache_bag.cache_duration)
+    self.assertEqual('value_for_y', cache_bag.get('y'))
+    self.assertEqual('value_for_y', ram_cache_factory_plugin_list[0].get('y',DEFAULT_CACHE_SCOPE).getValue())
+
+  def test_07_CheckCacheFactory(self):
+    """
+      Check Cache Factory set and get API.
+    """
+    portal_caches = self.portal.portal_caches
+
+    cache_factory = portal_caches.newContent(portal_type="Cache Factory",
+                                         cache_duration=3600)
+
+    cache_plugin1 = cache_factory.newContent(portal_type="Ram Cache")
+    cache_plugin1.setIntIndex(0)
+
+    cache_bag1 = cache_factory.newContent(portal_type="Cache Bag",
+                                         cache_duration=3600)
+    cache_bag1.setIntIndex(1)
+    ram_cache1 = cache_bag1.newContent(portal_type="Ram Cache")
+    ram_cache2 = cache_bag1.newContent(portal_type="Ram Cache")
+    self.tic()
+    portal_caches.updateCache()
+
+    # test get / set API
+    cache_factory.set('x', 'value_for_x')
+    self.assertEqual('value_for_x', cache_factory.get('x'))
+
+    # test that all cache plugin have this set
+    self.assertEqual('value_for_x', cache_plugin1.get('x'))
+    self.assertEqual('value_for_x', cache_bag1.get('x'))
+
+    # test set on individual cache plugin as this cache plugin has highest priority
+    # it will affect what root Cache Factory returns
+    cache_plugin1.set('x', 'new_value_for_x')
+    self.assertEqual('new_value_for_x', cache_plugin1.get('x'))
+    self.assertEqual('new_value_for_x', cache_factory.get('x'))
+    # others cache plugins will remain with old value until ...
+    self.assertEqual('value_for_x', cache_bag1.get('x'))
+    # .. root Cache Factory set will update all
+    cache_factory.set('x', 'new_value_for_x')
+    self.assertEqual(cache_factory.get('x'), cache_plugin1.get('x'))
+    self.assertEqual(cache_plugin1.get('x'), cache_bag1.get('x'))
+    self.assertEqual('new_value_for_x', cache_factory.get('x'))
 
   def test_99_CachePluginInterface(self):
     """Test Class against Interface

@@ -240,8 +240,6 @@ class BusinessProcess(Path, XMLObject):
     # and avoid using the low level Predicate API. But the Domain Tool does
     # support the condition above without scripting?
     if context is None:
-      LOG('ERP5.Document.BusinessProcess', 0, 'Context is None %r' %
-                  (business_link_list,))
       return business_link_list
     return [business_link for business_link in business_link_list
                 if business_link.test(context)]
@@ -619,7 +617,7 @@ class BusinessProcess(Path, XMLObject):
     """
     remaining_trade_phase_list = []
     trade_state = business_link.getSuccessor()
-    tv = getTransactionalVariable(self)
+    tv = getTransactionalVariable()
     # We might need a key which depends on the explanation
     key = 'BusinessProcess_predecessor_successor_%s' % self.getRelativeUrl()
     predecessor_successor_dict = tv.get(key, None)
@@ -690,7 +688,8 @@ class BusinessProcess(Path, XMLObject):
     if update_property_dict is None: update_property_dict = {}
     for trade_model_path in self.getTradeModelPathValueList(context=amount, trade_phase=trade_phase):
       id_index += 1
-      movement = newTempSimulationMovement(trade_model_path, '%s_%s' % (base_id, id_index))
+      movement = newTempSimulationMovement(trade_model_path,
+        '%s_%s' % (base_id, id_index), notify_workflow=False)
       kw = self._getPropertyAndCategoryDict(explanation, amount, trade_model_path, delay_mode=delay_mode)
       try:
         kw['trade_phase'], = \
@@ -711,7 +710,10 @@ class BusinessProcess(Path, XMLObject):
 
     # result can not be empty
     if not result:
-      raise ValueError("A Business Process can not erase amounts")
+      raise ValueError("A Business Process can not erase amounts:"
+                       " no Trade Model Path found for %r"
+                       " (rule=%s, trade_phase=%r)"
+                       % (amount, explanation.getSpecialise(), trade_phase))
 
     # Sort movement list and make sure the total is equal to total_quantity
     total_quantity = amount.getQuantity()
@@ -796,8 +798,7 @@ class BusinessProcess(Path, XMLObject):
           property_dict['start_date'], property_dict['stop_date'] = \
             self.getExpectedTradeModelPathStartAndStopDate(
               explanation, trade_model_path, delay_mode=delay_mode)
-    else:
-      raise TypeError("Explanation must be an Applied Rule in expand process") # Nothing to do
+    # Else, nothing to do. This method can be used without Applied Rule.
     return property_dict
 
   # IBusinessProcess global API

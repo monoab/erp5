@@ -402,7 +402,8 @@
                          tal:define ="params python: {alias:\'this.value\'};"\n
                          size="8"\n
                          type="text" \n
-                         tal:attributes=\'value python: selection.getParams().get(alias,"");\n
+                         tal:attributes=\'name string:${field_id}_${alias};\n
+                                         value python: selection.getParams().get(alias,"");\n
                                          onkeypress python:"if(event.keyCode==13){" + real_context.KnowledgePad_generateAjaxCall(context_url+"/"+form_id,box,dom_id,params).replace("\\"this.value\\"","this.value")+ "return false;;}"\'/>\n
                 </tal:block>\n
               </tal:block>\n
@@ -502,6 +503,8 @@
                 <span i18n:translate="" i18n:domain="ui">\n
                   No result.\n
                 </span>\n
+                <input type="hidden" value="1" name="listbox_empty:boolean"\n
+                       tal:attributes="name string:${field_prefix}${field_id}_empty:boolean" />\n
               </td>\n
             </tr>\n
           </tbody>\n

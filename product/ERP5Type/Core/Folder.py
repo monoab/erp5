@@ -70,8 +70,6 @@ except ImportError:
     pass
 
 
-from AccessControl import getSecurityManager
-from Products.ERP5Type import Permissions
 from DateTime import DateTime
 from random import randint
 
@@ -186,7 +184,7 @@ class FolderMixIn(ExtensionClass.Base):
     Generate id base on date, useful for HBTreeFolder
     We also append random id
     """
-    current_date = str(DateTime().Date()).replace("/", "")
+    current_date = DateTime().strftime('%Y%m%d')
     my_id = self._generateRandomId()
     return "%s-%s" %(current_date, my_id)
     
@@ -214,6 +212,22 @@ class FolderMixIn(ExtensionClass.Base):
     my_id = str(my_id)
     self._setLastId(my_id) # Make sure no reindexing happens
     return my_id
+
+  def _generatePerNodeNumberId(self):
+    """
+    Generate id base on node number, useful for import and mass creation
+    of objects inside a module using activities
+    We also append random id
+    """
+    activity_tool = self.getPortalObject().portal_activities
+    node_list = list(activity_tool.getNodeList())
+    current_node = activity_tool.getCurrentNode()
+    try:
+      node_number = node_list.index(current_node)
+    except ValueError:
+      # Not a processing node
+      node_number = 111
+    return "%03d-%s" %(node_number, self._generateRandomId())
 
   # Automatic ID Generation method
   security.declareProtected(Permissions.View, 'generateNewId')
@@ -373,17 +387,12 @@ class FolderMixIn(ExtensionClass.Base):
     In order to activate objects that don't inherit ActiveObject,
     only placeless default activate parameters are taken into account.
     """
-    portal = self.getPortalObject()
-    activate_kw = portal.getPlacelessDefaultActivateParameters()
-    if activate_kw:
-      activate_kw = activate_kw.copy()
-    else:
-      activate_kw = {}
+    activate_kw = self.getDefaultActivateParameterDict.im_func(None)
     activate_kw.update(kw.get('activate_kw', ()))
     activate_kw.setdefault('active_process', None)
-    activate = portal.portal_activities.activateObject
+    activate = self.getPortalObject().portal_activities.activateObject
     validate = restricted and getSecurityManager().validate
-    cost = activate_kw.get('group_method_cost', .034) # 30 objects
+    cost = activate_kw.setdefault('group_method_cost', .034) # 30 objects
     if cost != 1:
       activate_kw.setdefault('group_method_id', None) # dummy group method
     activity_count = kw.get('activity_count', 1000)
@@ -394,7 +403,7 @@ class FolderMixIn(ExtensionClass.Base):
     try:
       recurse_stack = kw['_recurse_stack']
     except KeyError:
-      recurse_stack = [id_list and deque(id_list) or min_id or '']
+      recurse_stack = [deque(id_list) if id_list else min_id or '']
       kw['_recurse_stack'] = recurse_stack
     min_depth = kw.get('min_depth', 0)
     max_depth = kw.get('max_depth', 0)
@@ -445,9 +454,11 @@ class FolderMixIn(ExtensionClass.Base):
         method_id, method_args, method_kw, restricted=restricted, **kw)
 
   security.declarePublic('recurseCallMethod')
-  def recurseCallMethod(self, *args, **kw):
+  def recurseCallMethod(self, method_id, *args, **kw):
     """Restricted version of _recurseCallMethod"""
-    return self._recurseCallMethod(restricted=True, *args, **kw)
+    if method_id[0] == '_':
+        raise AccessControl_Unauthorized(method_id)
+    return self._recurseCallMethod(method_id, restricted=True, *args, **kw)
 
 OFS_HANDLER = 0
 BTREE_HANDLER = 1
@@ -550,7 +561,7 @@ class Folder(CopyContainer, CMFBTreeFolder, CMFHBTreeFolder, Base, FolderMixIn):
     return self._folder_handler == HBTREE_HANDLER
 
   security.declareProtected( Permissions.ManagePortal, 'migrateToHBTree' )
-  def migrateToHBTree(self, migration_generate_id_method=None, new_generate_id_method=None, REQUEST=None):
+  def migrateToHBTree(self, migration_generate_id_method=None, new_generate_id_method='_generatePerDayId', REQUEST=None):
     """
     Function to migrate from a BTree folder to HBTree folder.
     It will first call setId on all folder objects to have right id
@@ -607,10 +618,11 @@ class Folder(CopyContainer, CMFBTreeFolder, CMFHBTreeFolder, Base, FolderMixIn):
     Remove remaining attributes from previous btree
     and migration
     """
-    if getattr(self, "_tree", None) is not None:
-      delattr(self, "_tree")    
-    if getattr(self, migration_process_lock, None) is not None:
-      delattr(self, migration_process_lock)
+    for attr in "_tree", "_mt_index", migration_process_lock:
+      try:
+        delattr(self, attr)
+      except AttributeError:
+        pass
 
   def _launchCopyObjectToHBTree(self, tag):
     """
@@ -962,8 +974,12 @@ class Folder(CopyContainer, CMFBTreeFolder, CMFHBTreeFolder, Base, FolderMixIn):
 
   def _setObject(self, *args, **kw):
     if self._folder_handler == HBTREE_HANDLER:
+      if self._htree is None:
+        HBTreeFolder2Base.__init__(self, self.id)
       return CMFHBTreeFolder._setObject(self, *args, **kw)
     else:
+      if self._tree is None:
+        BTreeFolder2Base.__init__(self, self.id)
       return CMFBTreeFolder._setObject(self, *args, **kw)
 
   def get(self, id, default=None):
@@ -1044,6 +1060,11 @@ class Folder(CopyContainer, CMFBTreeFolder, CMFHBTreeFolder, Base, FolderMixIn):
       if self._tree is None:
         return False
       return CMFBTreeFolder.hasObject(self, id)
+
+  # Work around for the performance regression introduced in Zope 2.12.23.
+  # Otherwise, we use superclass' __contains__ implementation, which uses
+  # objectIds, which is inefficient in HBTreeFolder2 to lookup a single key.
+  __contains__ = hasObject
 
   # Override Zope default by folder id generation
   def _get_id(self, id):
@@ -1202,7 +1223,6 @@ class Folder(CopyContainer, CMFBTreeFolder, CMFHBTreeFolder, Base, FolderMixIn):
     if isinstance(to_class, type('')):
       to_class = getClassFromString(to_class)
 
-    folder = self.getObject()
     for o in self.listFolderContents():
       # Make sure this sub object is not the same as object
       if o.getPhysicalPath() != self.getPhysicalPath():
@@ -1258,10 +1278,11 @@ class Folder(CopyContainer, CMFBTreeFolder, CMFHBTreeFolder, Base, FolderMixIn):
   def reindexObjectSecurity(self, *args, **kw):
     """
         Reindex security-related indexes on the object
-        (and its descendants).
     """
-    # In ERP5, simply reindex all objects.
-    self.recursiveReindexObject(*args, **kw)
+    # In ERP5, simply reindex all objects, recursively by default.
+    reindex = self._getTypeBasedMethod('reindexObjectSecurity',
+                                       'recursiveReindexObject')
+    reindex(*args, **kw)
 
   security.declarePublic( 'recursiveReindexObject' )
   def recursiveReindexObject(self, activate_kw=None, **kw):
@@ -1392,6 +1413,10 @@ class Folder(CopyContainer, CMFBTreeFolder, CMFHBTreeFolder, Base, FolderMixIn):
       transaction.savepoint(optimistic=True)
     # Then check the consistency on all sub objects
     for obj in self.contentValues():
+      if obj.providesIConstraint():
+        # it is not possible to checkConsistency of Constraint itself, as method
+        # of this name implement consistency checking on object
+        continue
       if fixit:
         extra_errors = obj.fixConsistency(filter=filter, **kw)
       else:
@@ -1483,7 +1508,6 @@ class Folder(CopyContainer, CMFBTreeFolder, CMFHBTreeFolder, Base, FolderMixIn):
     corrected_list = []
     for object in from_object_related_object_list:
       #LOG('Folder.mergeContent, working on object:',0,object)
-      object_url = object.getRelativeUrl()
       new_category_list = []
       found = 0
       for category in object.getCategoryList(): # so ('destination/person/1',...)

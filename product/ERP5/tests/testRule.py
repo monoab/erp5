@@ -27,7 +27,6 @@
 
 import unittest
 
-import transaction
 
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from Products.ERP5Type.tests.utils import createZODBPythonScript
@@ -65,7 +64,6 @@ class TestRuleMixin(TestOrderMixin):
     # recreate rules
     self.createRule('default_order_rule', '1')
     self.createRule('default_delivery_rule', '1')
-    transaction.commit()
     self.tic()
     # create packing list if necessary
     pl_module = self.portal.getDefaultModule(self.packing_list_portal_type)
@@ -86,14 +84,12 @@ class TestRuleMixin(TestOrderMixin):
     self.sm = self.ar.newContent(portal_type='Simulation Movement')
     self.sm.setStartDate("2007-07-01") # for the date based rule tests
     # commit
-    transaction.commit()
     self.tic()
 
 
   def beforeTearDown(self):
     self._wipe(self.getSimulationTool())
     self._wipe(self.portal.portal_skins.custom)
-    transaction.commit()
     self.tic()
 
   def getTitle(self):
@@ -101,7 +97,9 @@ class TestRuleMixin(TestOrderMixin):
 
   def getBusinessTemplateList(self):
     return TestOrderMixin.getBusinessTemplateList(self) + ('erp5_accounting',
-                'erp5_invoicing',)
+            'erp5_invoicing',
+            'erp5_configurator_standard_accounting_template',
+            'erp5_configurator_standard_invoicing_template')
 
   def createPackingList(self):
     """
@@ -117,10 +115,8 @@ class TestRuleMixin(TestOrderMixin):
     pl.newContent(portal_type=self.packing_list_line_portal_type, id='line',
                   quantity=1)
     pl.setStartDate("2007-07-01")
-    transaction.commit()
     self.tic()
     pl.confirm()
-    transaction.commit()
     self.tic()
     return pl
 
@@ -138,7 +134,6 @@ class TestRule(TestRuleMixin, ERP5TypeTestCase) :
 
     delivery_rule = self.getRule('default_delivery_rule')
     delivery_rule.validate()
-    transaction.commit()
     self.tic()
 
     self.assertEquals(self.getRuleTool().countFolder(
@@ -157,7 +152,6 @@ class TestRule(TestRuleMixin, ERP5TypeTestCase) :
     delivery_rule = self.getRule('default_delivery_rule')
     delivery_rule.setTestMethodId('wrong_script')
     delivery_rule.validate()
-    transaction.commit()
     self.tic()
 
     self.assertEquals(self.getRuleTool().countFolder(
@@ -176,7 +170,6 @@ class TestRule(TestRuleMixin, ERP5TypeTestCase) :
     delivery_rule = self.getRule('default_delivery_rule')
     delivery_rule.setTestMethodId('good_script')
     delivery_rule.validate()
-    transaction.commit()
     self.tic()
 
     self.assertEquals(self.getRuleTool().countFolder(
@@ -197,7 +190,6 @@ class TestRule(TestRuleMixin, ERP5TypeTestCase) :
     delivery_rule.setTestMethodId('good_script')
     delivery_rule.validate()
     delivery_rule.invalidate()
-    transaction.commit()
     self.tic()
 
     self.assertEquals(self.getRuleTool().countFolder(
@@ -219,7 +211,6 @@ class TestRule(TestRuleMixin, ERP5TypeTestCase) :
     delivery_rule.setStartDateRangeMin('2007-06-01')
     delivery_rule.setStartDateRangeMax('2007-06-04')
     delivery_rule.validate()
-    transaction.commit()
     self.tic()
 
     self.assertEquals(self.getRuleTool().countFolder(
@@ -241,7 +232,6 @@ class TestRule(TestRuleMixin, ERP5TypeTestCase) :
     delivery_rule.setStartDateRangeMin('2007-06-01')
     delivery_rule.setStartDateRangeMax('2007-08-01')
     delivery_rule.validate()
-    transaction.commit()
     self.tic()
 
     self.assertEquals(self.getRuleTool().countFolder(
@@ -268,7 +258,6 @@ return context.generatePredicate(
         """)
     # and validate it, which will indirectly reindex the predicate.
     delivery_rule.validate()
-    transaction.commit()
     self.tic()
     # now rules don't match packing lists by default
     self.assertEqual(len(self.getRuleTool().searchRuleList(self.pl)), 0)
@@ -284,7 +273,6 @@ return context.generatePredicate(
 )
       """ % self.pl.getStartDate())
     delivery_rule.reindexObject()
-    transaction.commit()
     self.tic()
     # now they match the packing list, but not the simulation movement
     self.assertEqual(len(self.getRuleTool().searchRuleList(self.pl)), 1)
@@ -292,7 +280,6 @@ return context.generatePredicate(
     # Note that we added a range criterion above, which means that if
     # the packing list no longer falls within the range...
     self.pl.setStartDate(self.pl.getStartDate() - 1)
-    transaction.commit()
     self.tic()
     # ... then the rule no longer matches the packing list:
     self.assertEqual(len(self.getRuleTool().searchRuleList(self.pl)), 0)
@@ -304,7 +291,6 @@ return context.generatePredicate(
 )
       """ % self.pl.getStartDate())
     delivery_rule.reindexObject()
-    transaction.commit()
     self.tic()
     # ... it will match again
     self.assertEqual(len(self.getRuleTool().searchRuleList(self.pl)), 1)
@@ -332,7 +318,6 @@ return context.generatePredicate(
         """)
     # and validate it, which will indirectly reindex the predicate.
     delivery_rule.validate()
-    transaction.commit()
     self.tic()
     # Now since the rule has a trade_phase
     self.assertEqual(delivery_rule.getTradePhase(), 'default/delivery')
@@ -340,16 +325,16 @@ return context.generatePredicate(
     self.assertEqual(len(rule_tool.searchRuleList(self.sm)), 0)
     # unless it gets a trade_phase itself
     self.sm.setTradePhase('default/delivery')
-    self.stepTic()
+    self.tic()
     self.assertEqual(len(rule_tool.searchRuleList(self.sm)), 1)
     # But if the rule itself has no trade_phase...
     delivery_rule.setTradePhase(None)
-    self.stepTic()
+    self.tic()
     # then it should match the simulation movement with or without
     # trade_phase
     self.assertEqual(len(rule_tool.searchRuleList(self.sm)), 1)
     self.sm.setTradePhase(None)
-    self.stepTic()
+    self.tic()
     self.assertEqual(len(rule_tool.searchRuleList(self.sm)), 1)
 
   def test_072_search_with_extra_catalog_keywords(self):
@@ -365,7 +350,6 @@ return context.generatePredicate(
     delivery_rule = self.getRule('default_delivery_rule')
     delivery_rule.setTestMethodId('good_script')
     delivery_rule.validate()
-    transaction.commit()
     self.tic()
     # Now since the rule has a trade_phase
     trade_phase_list = delivery_rule.getTradePhaseList()
@@ -384,9 +368,9 @@ return context.generatePredicate(
     kw['trade_phase_relative_url'] = []
     self.assertEqual(len(rule_tool.searchRuleList(self.sm, **kw)), 1)
 
-  def test_08_updateAppliedRule(self, quiet=quiet, run=run_all_test):
+  def test_08_createRootAppliedRule(self, quiet=quiet, run=run_all_test):
     """
-    test that when updateAppliedRule is called, the rule with the correct
+    test that when updateSimulation is called, the rule with the correct
     reference and higher version is used
 
     XXX as expand is triggered here, make sure rules won't be created forever
@@ -409,30 +393,30 @@ return context.generatePredicate(
     delivery_rule_2 = self.createRule('default_delivery_rule', '2',
                                       test_method_id='rule_script')
     delivery_rule_2.validate()
-    transaction.commit()
     self.tic()
 
     # delivery_rule_2 should be applied
-    self.pl.updateAppliedRule('default_delivery_rule')
-    transaction.commit()
+    self.pl.updateSimulation(create_root=1)
     self.tic()
-    self.assertEquals(self.pl.getCausalityRelatedValue().getSpecialise(),
+    root_applied_rule, = self.pl.getCausalityRelatedValueList()
+    self.assertEquals(root_applied_rule.getSpecialise(),
         delivery_rule_2.getRelativeUrl())
 
-    self.getSimulationTool().manage_delObjects(
-        ids=[self.pl.getCausalityRelatedId()])
+    self.getSimulationTool()._delObject(root_applied_rule.getId())
 
     # increase version of delivery_rule_1
     delivery_rule_1.setVersion("testRule.3")
-    transaction.commit()
     self.tic()
 
     # delivery_rule_1 should be applied
-    self.pl.updateAppliedRule('default_delivery_rule')
-    transaction.commit()
+    self.pl.updateSimulation(create_root=1)
     self.tic()
-    self.assertEquals(self.pl.getCausalityRelatedValue().getSpecialise(),
+    root_applied_rule, = self.pl.getCausalityRelatedValueList()
+    self.assertEquals(root_applied_rule.getSpecialise(),
         delivery_rule_1.getRelativeUrl())
+
+    self.getSimulationTool()._delObject(root_applied_rule.getId())
+    self.tic()
 
   def test_09_expandTwoRules(self, quiet=quiet, run=run_all_test):
     """
@@ -463,50 +447,39 @@ return context.generatePredicate(
                                        test_method_id='invoice_rule_script')
     invoicing_rule_2.validate()
 
-    # clear simulation
-    self.getSimulationTool().manage_delObjects(
-        ids=list(self.getSimulationTool().objectIds()))
-    transaction.commit()
-    self.tic()
-
-    self.pl.updateAppliedRule('default_delivery_rule')
-    transaction.commit()
+    self.pl.updateSimulation(create_root=1)
     self.tic()
 
     # check that only one invoicing rule (higher version) was applied
-    root_applied_rule = self.pl.getCausalityRelatedValue()
+    root_applied_rule, = self.pl.getCausalityRelatedValueList()
     self.assertEquals(root_applied_rule.getSpecialise(),
         delivery_rule.getRelativeUrl())
 
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
-    self.assertEquals(movement.objectCount(), 1)
-    applied_rule = movement.objectValues()[0]
+    movement, = root_applied_rule.objectValues()
+    applied_rule, = movement.objectValues()
     self.assertEquals(applied_rule.getSpecialise(),
         invoicing_rule_2.getRelativeUrl())
 
     # increase version of other rule, clean simulation and check again
-    self.getSimulationTool().manage_delObjects(
-        ids=[self.pl.getCausalityRelatedId()])
+    self.getSimulationTool()._delObject(root_applied_rule.getId())
     invoicing_rule_1.setVersion('testRule.3')
-    transaction.commit()
     self.tic()
 
-    self.pl.updateAppliedRule('default_delivery_rule')
-    transaction.commit()
+    self.pl.updateSimulation(create_root=1)
     self.tic()
 
     # check that only one invoicing rule (higher version) was applied
-    root_applied_rule = self.pl.getCausalityRelatedValue()
+    root_applied_rule, = self.pl.getCausalityRelatedValueList()
     self.assertEquals(root_applied_rule.getSpecialise(),
         delivery_rule.getRelativeUrl())
 
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
-    self.assertEquals(movement.objectCount(), 1)
-    applied_rule = movement.objectValues()[0]
+    movement, = root_applied_rule.objectValues()
+    applied_rule, = movement.objectValues()
     self.assertEquals(applied_rule.getSpecialise(),
         invoicing_rule_1.getRelativeUrl())
+
+    self.getSimulationTool()._delObject(root_applied_rule.getId())
+    self.tic()
 
   def test_10_expandAddsRule(self, quiet=quiet, run=run_all_test):
     """
@@ -532,41 +505,23 @@ return context.generatePredicate(
                                        test_method_id='delivery_rule_script')
     invoicing_rule_1.validate()
 
-    # clear simulation
-    self.getSimulationTool().manage_delObjects(
-        ids=list(self.getSimulationTool().objectIds()))
-    transaction.commit()
+    self.pl.updateSimulation(create_root=1)
     self.tic()
-
-    self.pl.updateAppliedRule('default_delivery_rule')
-    transaction.commit()
-    self.tic()
-    root_applied_rule = self.pl.getCausalityRelatedValue()
+    root_applied_rule, = self.pl.getCausalityRelatedValueList()
 
     # check that no invoicing rule was applied
     self.assertEquals(root_applied_rule.getSpecialise(),
         delivery_rule.getRelativeUrl())
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
+    movement, = root_applied_rule.objectValues()
     self.assertEquals(movement.objectCount(), 0)
 
     # change rule script so that it matches and test again
     invoicing_rule_1.setTestMethodId('invoice_rule_script')
     root_applied_rule.expand()
-    transaction.commit()
     self.tic()
 
-    self.assertEquals(root_applied_rule.getRelativeUrl(),
-        self.pl.getCausalityRelated())
-    self.assertEquals(root_applied_rule.getSpecialise(),
-        delivery_rule.getRelativeUrl())
-
-    self.assertEquals(root_applied_rule.getSpecialise(),
-        delivery_rule.getRelativeUrl())
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
-    self.assertEquals(movement.objectCount(), 1)
-    invoicing_rule_1_applied_rule = movement.objectValues()[0]
+    self.assertEquals(list(root_applied_rule.objectValues()), [movement])
+    invoicing_rule_1_applied_rule, = movement.objectValues()
     self.assertEquals(invoicing_rule_1_applied_rule.getSpecialise(),
                       invoicing_rule_1.getRelativeUrl())
 
@@ -580,34 +535,21 @@ return context.generatePredicate(
                                        reference='default_invoicing_rule_2',
                                        test_method_id='invoice_rule_script')
     invoicing_rule_2.validate()
-    transaction.commit()
     self.tic()
     root_applied_rule.expand()
-    transaction.commit()
     self.tic()
 
-    self.assertEquals(root_applied_rule.getRelativeUrl(),
-        self.pl.getCausalityRelated())
-    self.assertEquals(root_applied_rule.getSpecialise(),
-        delivery_rule.getRelativeUrl())
-
-    self.assertEquals(root_applied_rule.getSpecialise(),
-        delivery_rule.getRelativeUrl())
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
-    self.assertEquals(movement.objectCount(), 2)
-    applied_rule_list = sorted(movement.objectValues(),
-                          key=lambda x: x.getSpecialiseValue().getReference())
+    self.assertEquals(list(root_applied_rule.objectValues()), [movement])
+    applied_rule_1, applied_rule_2 = sorted(movement.objectValues(),
+        key=lambda x: x.getSpecialiseReference())
     # check the 1st applied rule is an application of invoicing_rule_1
-    self.assertEquals(applied_rule_list[0].getSpecialise(),
-                      invoicing_rule_1.getRelativeUrl())
-    # but also check it's the same applied rule as before instead of a new
-    # one with the same specialization
-    self.assertEqual(applied_rule_list[0],
-                      invoicing_rule_1_applied_rule)
-    self.assertEquals(applied_rule_list[1].getSpecialise(),
+    self.assertEquals(applied_rule_1.getSpecialise(),
+        invoicing_rule_n.getRelativeUrl())
+    self.assertEquals(applied_rule_2.getSpecialise(),
         invoicing_rule_2.getRelativeUrl())
 
+    self.getSimulationTool()._delObject(root_applied_rule.getId())
+    self.tic()
 
   def test_11_expandRemovesRule(self, quiet=quiet, run=run_all_test):
     """
@@ -633,61 +575,35 @@ return context.generatePredicate(
                                        test_method_id='invoice_rule_script')
     invoicing_rule_1.validate()
 
-    # clear simulation
-    self.getSimulationTool().manage_delObjects(
-        ids=list(self.getSimulationTool().objectIds()))
-
-    transaction.commit()
+    self.pl.updateSimulation(create_root=1)
     self.tic()
-
-    self.pl.updateAppliedRule('default_delivery_rule')
-    transaction.commit()
-    self.tic()
-    root_applied_rule = self.pl.getCausalityRelatedValue()
+    root_applied_rule, = self.pl.getCausalityRelatedValueList()
 
     # check that the invoicing rule was applied
     self.assertEquals(root_applied_rule.getSpecialise(),
         delivery_rule.getRelativeUrl())
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
-    self.assertEquals(movement.objectCount(), 1)
-    applied_rule = movement.objectValues()[0]
+    movement, = root_applied_rule.objectValues()
+    applied_rule, = movement.objectValues()
     self.assertEquals(applied_rule.getSpecialise(),
         invoicing_rule_1.getRelativeUrl())
 
-    # invalidate the rule and test that it is still there
+    # invalidate the rule and test that it is gone
     invoicing_rule_1.invalidate()
-    transaction.commit()
     self.tic()
     self.assertEquals(invoicing_rule_1.getValidationState(), 'invalidated')
     root_applied_rule.expand()
-    transaction.commit()
     self.tic()
 
-    self.assertEquals(root_applied_rule.getRelativeUrl(),
-        self.pl.getCausalityRelated())
-    self.assertEquals(root_applied_rule.getSpecialise(),
-        delivery_rule.getRelativeUrl())
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
-    self.assertEquals(movement.objectCount(), 1)
-    applied_rule = movement.objectValues()[0]
-    self.assertEquals(applied_rule.getSpecialise(),
-        invoicing_rule_1.getRelativeUrl())
+    self.assertEquals(list(root_applied_rule.objectValues()), [movement])
+    self.assertEquals(movement.objectCount(), 0)
 
     # change the test method to one that fails, and test that the rule is
     # removed
     invoicing_rule_1.setTestMethodId('delivery_rule_script')
     root_applied_rule.expand()
-    transaction.commit()
     self.tic()
 
-    self.assertEquals(root_applied_rule.getRelativeUrl(),
-        self.pl.getCausalityRelated())
-    self.assertEquals(root_applied_rule.getSpecialise(),
-        delivery_rule.getRelativeUrl())
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
+    self.assertEquals(list(root_applied_rule.objectValues()), [movement])
     self.assertEquals(movement.objectCount(), 0)
 
     # change the test to one that succeeds, revalidate, expand, add a delivery
@@ -695,46 +611,32 @@ return context.generatePredicate(
     # that the rule is still there
     invoicing_rule_1.setTestMethodId('invoice_rule_script')
     invoicing_rule_1.validate()
-    transaction.commit()
     self.tic()
     self.assertEquals(invoicing_rule_1.getValidationState(), 'validated')
     root_applied_rule.expand()
-    transaction.commit()
     self.tic()
 
-    self.assertEquals(root_applied_rule.getRelativeUrl(),
-        self.pl.getCausalityRelated())
-    self.assertEquals(root_applied_rule.getSpecialise(),
-        delivery_rule.getRelativeUrl())
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
-    self.assertEquals(movement.objectCount(), 1)
-    applied_rule = movement.objectValues()[0]
+    self.assertEquals(list(root_applied_rule.objectValues()), [movement])
+    applied_rule, = movement.objectValues()
     self.assertEquals(applied_rule.getSpecialise(),
         invoicing_rule_1.getRelativeUrl())
-    self.assertEquals(applied_rule.objectCount(), 1)
-    sub_movement = applied_rule.objectValues()[0]
+    sub_movement, = applied_rule.objectValues()
 
     sub_movement.setDeliveryValue(self.pl.line)
 
     invoicing_rule_1.setTestMethodId('delivery_rule_script')
     root_applied_rule.expand()
-    transaction.commit()
     self.tic()
 
-    self.assertEquals(root_applied_rule.getRelativeUrl(),
-        self.pl.getCausalityRelated())
-    self.assertEquals(root_applied_rule.getSpecialise(),
-        delivery_rule.getRelativeUrl())
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
-    self.assertEquals(movement.objectCount(), 1)
-    applied_rule = movement.objectValues()[0]
+    self.assertEquals(list(root_applied_rule.objectValues()), [movement])
+    self.assertEquals(list(movement.objectValues()), [applied_rule])
     self.assertEquals(applied_rule.getSpecialise(),
         invoicing_rule_1.getRelativeUrl())
-    self.assertEquals(applied_rule.objectCount(), 1)
-    sub_movement = applied_rule.objectValues()[0]
+    self.assertEquals(list(applied_rule.objectValues()), [sub_movement])
     self.assertEquals(sub_movement.getDelivery(), self.pl.line.getRelativeUrl())
+
+    self.getSimulationTool()._delObject(root_applied_rule.getId())
+    self.tic()
 
   def test_12_expandReplacesRule(self, quiet=quiet, run=run_all_test):
     """
@@ -765,25 +667,15 @@ return context.generatePredicate(
                                        test_method_id='invoice_rule_script')
     invoicing_rule_2.validate()
 
-    # clear simulation
-    self.getSimulationTool().manage_delObjects(
-        ids=list(self.getSimulationTool().objectIds()))
-
-    transaction.commit()
+    self.pl.updateSimulation(create_root=1)
     self.tic()
-
-    self.pl.updateAppliedRule('default_delivery_rule')
-    transaction.commit()
-    self.tic()
-    root_applied_rule = self.pl.getCausalityRelatedValue()
+    root_applied_rule, = self.pl.getCausalityRelatedValueList()
 
     # check that the invoicing rule 2 was applied
     self.assertEquals(root_applied_rule.getSpecialise(),
         delivery_rule.getRelativeUrl())
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
-    self.assertEquals(movement.objectCount(), 1)
-    applied_rule = movement.objectValues()[0]
+    movement, = root_applied_rule.objectValues()
+    applied_rule, = movement.objectValues()
     self.assertEquals(applied_rule.getSpecialise(),
         invoicing_rule_2.getRelativeUrl())
 
@@ -791,42 +683,30 @@ return context.generatePredicate(
     # replaced by invoicing rule 1
     invoicing_rule_2.setTestMethodId('delivery_rule_script')
     root_applied_rule.expand()
-    transaction.commit()
     self.tic()
 
-    self.assertEquals(root_applied_rule.getRelativeUrl(),
-        self.pl.getCausalityRelated())
-    self.assertEquals(root_applied_rule.getSpecialise(),
-        delivery_rule.getRelativeUrl())
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
-    self.assertEquals(movement.objectCount(), 1)
-    applied_rule = movement.objectValues()[0]
+    self.assertEquals(list(root_applied_rule.objectValues()), [movement])
+    applied_rule, = movement.objectValues()
     self.assertEquals(applied_rule.getSpecialise(),
         invoicing_rule_1.getRelativeUrl())
 
     # change the test of invoicing rule 2 to one that succeeds, add a delivery
     # relation, expand, and test that the invoicing rule 1 is still there
     invoicing_rule_2.setTestMethodId('invoice_rule_script')
-    sub_movement = applied_rule.objectValues()[0]
+    sub_movement, = applied_rule.objectValues()
     sub_movement.setDeliveryValue(self.pl.line)
     root_applied_rule.expand()
-    transaction.commit()
     self.tic()
 
-    self.assertEquals(root_applied_rule.getRelativeUrl(),
-        self.pl.getCausalityRelated())
-    self.assertEquals(root_applied_rule.getSpecialise(),
-        delivery_rule.getRelativeUrl())
-    self.assertEquals(root_applied_rule.objectCount(), 1)
-    movement = root_applied_rule.objectValues()[0]
-    self.assertEquals(movement.objectCount(), 1)
-    applied_rule = movement.objectValues()[0]
+    self.assertEquals(list(root_applied_rule.objectValues()), [movement])
+    self.assertEquals(list(movement.objectValues()), [applied_rule])
     self.assertEquals(applied_rule.getSpecialise(),
         invoicing_rule_1.getRelativeUrl())
-    self.assertEquals(applied_rule.objectCount(), 1)
-    sub_movement = applied_rule.objectValues()[0]
+    self.assertEquals(list(applied_rule.objectValues()), [sub_movement])
     self.assertEquals(sub_movement.getDelivery(), self.pl.line.getRelativeUrl())
+
+    self.getSimulationTool()._delObject(root_applied_rule.getId())
+    self.tic()
 
 
 def test_suite():

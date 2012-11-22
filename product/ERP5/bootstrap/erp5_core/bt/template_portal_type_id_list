@@ -15,6 +15,7 @@ Base Category
 Base Domain
 Base Type
 Business Template
+Cache Bag
 Cache Factory
 Cache Tool
 Category
@@ -27,6 +28,7 @@ Category Related Membership Arity Constraint
 Category Related Membership State Constraint
 Category Tool
 Class Tool
+Component Tool
 Conceptual Id Generator
 Content Existence Constraint
 Contribution Predicate
@@ -34,6 +36,7 @@ Contribution Registry Tool
 Delivery Tool
 Distributed Ram Cache
 Document
+Document Component
 Documentation Helper
 Domain
 Domain Generator
@@ -41,6 +44,7 @@ Domain Tool
 Dummy Class Tool
 Dynamic Category Property
 Event
+Extension Component
 Folder
 Id Tool
 Mapped Value
@@ -74,6 +78,7 @@ Synchronization Tool
 System Preference
 TALES Constraint
 Template Tool
+Test Component
 Test Tool
 Trash Bin
 Trash Folder

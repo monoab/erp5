@@ -28,7 +28,6 @@
 
 
 import unittest
-import transaction
 from Testing import ZopeTestCase
 from zExceptions import Unauthorized
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
@@ -72,7 +71,7 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
     """
     For debugging
     """
-    transaction.commit()
+    self.commit()
 
   def getBusinessTemplateList(self):
     """
@@ -89,6 +88,9 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
             "erp5_simplified_invoicing",
             "erp5_immobilisation",
             "erp5_computer_immobilisation", # In order to use items
+            'erp5_configurator_standard_trade_template',
+            'erp5_configurator_standard_accounting_template',
+            'erp5_configurator_standard_invoicing_template',
             "erp5_simulation_test",
             )
 
@@ -212,7 +214,6 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
     self.createAccountList()
     self.createItemList()
     self.validateRules()
-    transaction.commit()
     self.tic()
 
     self.workflow_tool = self.getWorkflowTool()
@@ -224,7 +225,6 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
     self.logout()
     self.login('manager')
 
-    transaction.commit()
     self.tic()
 
     simulation_id_list = [r for r in self.getPortal().portal_simulation.objectIds()]
@@ -241,7 +241,6 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
     id_list = [r for r in self.getAccountingModule().objectIds()]
     self.getAccountingModule().manage_delObjects(id_list)
 
-    transaction.commit()
     self.tic()
 
   def createCategories(self):
@@ -332,7 +331,7 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
                                        mapping = mapping,
                                        )
       ##We need to commit here because edit organisation doesn't apply
-      #transaction.commit()
+      #self.commit()
       #self.tic()
       for organisation_id in ['A','Aa','Ab','B','Ba','Bb','standalone']:
         organisation = organisation_module[organisation_id]
@@ -433,14 +432,11 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
     pl = sequence.get('packing_list')
     if pl is None: pl = sequence.get('packing_list_list', [])[-1]
     self.workflow_tool.doActionFor(pl, 'confirm_action', wf_id='packing_list_workflow')
-    transaction.commit()
     self.tic()
     self.workflow_tool.doActionFor(pl, 'set_ready_action', wf_id='packing_list_workflow')
     self.workflow_tool.doActionFor(pl, 'start_action', wf_id='packing_list_workflow')
-    transaction.commit()
     self.tic()
     self.workflow_tool.doActionFor(pl, 'stop_action', wf_id='packing_list_workflow')
-    transaction.commit()
     self.tic()
     #self.workflow_tool.doActionFor(pl, 'deliver_action', wf_id='packing_list_workflow')
 
@@ -469,7 +465,6 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
       pl_line = pl.newContent(portal_type = self.packing_list_line_portal_type)
       pl_line.edit(aggregate_value_list = item_list, 
                    resource_value=resource_value, **parameter_dict)
-    transaction.commit()
     self.tic()
     #pl.calculateImmobilisationValidity()
 
@@ -550,10 +545,8 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
   def stepValidateAccounting(self, sequence=None, sequence_list=None, **kw):
     for accounting_transaction in self.getAccountingModule().contentValues():
       accounting_transaction.stop()
-      transaction.commit()
       self.tic()
       accounting_transaction.deliver()
-      transaction.commit()
       self.tic()
 
   def stepTestPackingListInvalidImmobilisationState(self, sequence=None, sequence_list=None, **kw):
@@ -909,7 +902,6 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
     self.stepCreatePackingList(sequence=sequence)
     self.stepAggregateItems(sequence=sequence)
     self.stepDeliverPackingList(sequence=sequence)
-    transaction.commit()
     self.tic()
     for property in ('amortisation_start_price','amortisation_duration','immobilisation_vat',
                      'extra_cost_price','disposal_price'):
@@ -923,7 +915,6 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
     self.stepCreatePackingList(sequence=sequence)
     self.stepAggregateItems(sequence=sequence)
     self.stepDeliverPackingList(sequence=sequence)
-    transaction.commit()
     self.tic()
     parameter_dict.update(self.monthly_dict)
     sequence.edit(datetime = DateTime('2002/04/16'),
@@ -931,7 +922,6 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
     self.stepCreatePackingList(sequence=sequence)
     self.stepAggregateItems(sequence=sequence)
     self.stepDeliverPackingList(sequence=sequence)
-    transaction.commit()
     self.tic()
     sequence.edit(datetime = DateTime('2002/05/16'),
                   parameter_dict = parameter_dict,
@@ -939,7 +929,6 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
     self.stepCreatePackingList(sequence=sequence)
     self.stepAggregateItems(sequence=sequence)
     self.stepDeliverPackingList(sequence=sequence)
-    transaction.commit()
     self.tic()
     sequence.edit(datetime = DateTime('2002/06/16'),
                   parameter_dict = parameter_dict,
@@ -947,7 +936,6 @@ class TestImmobilisationMixin(ERP5TypeTestCase):
     self.stepCreatePackingList(sequence=sequence)
     self.stepAggregateItems(sequence=sequence)
     self.stepDeliverPackingList(sequence=sequence)
-    transaction.commit()
     self.tic()
 
   def stepBuildAccounting(self, sequence=None, sequence_list=None, **kw):
@@ -3621,7 +3609,6 @@ class TestImmobilisation(TestImmobilisationMixin):
                         'currency_module/EUR')
     if preference.getPreferenceState() == 'disabled':
       preference.enable()
-    transaction.commit()
     self.tic()
     # Now we can check several Accounting methods
     account = self.getPortal().account_module.account3
@@ -3629,7 +3616,6 @@ class TestImmobilisation(TestImmobilisationMixin):
     self.assertEquals(10000.0,account.AccountModule_getTotalSourceCredit(brain=account))
     preference.edit(preferred_accounting_transaction_section_category=\
                         'group/group B')
-    transaction.commit()
     self.tic()
     self.assertEquals('group/group B',
         preference_tool.getPreferredAccountingTransactionSectionCategory())
@@ -3638,7 +3624,6 @@ class TestImmobilisation(TestImmobilisationMixin):
     self.assertEquals(5000.0,account.AccountModule_getTotalSourceDebit(brain=account))
     self.assertEquals(0.0,account.AccountModule_getTotalSourceCredit(brain=account))
 
-  @newSimulationExpectedFailure
   def test_19_TestAccountingBuildingAndDivergence(self, quiet=0, run=run_all_test):
     if not run: return
     if not quiet:
@@ -3732,7 +3717,6 @@ class TestImmobilisation(TestImmobilisationMixin):
                   parameter_dict = parameter_dict,
                   destination_section = self.getOrganisationModule()["A"])
 
-  @newSimulationExpectedFailure
   def test_20_TestAccountingAcceptDecisionSolver(self, quiet=0, run=run_all_test):
     if not run: return
     if not quiet:

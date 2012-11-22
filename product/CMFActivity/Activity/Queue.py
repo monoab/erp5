@@ -45,7 +45,7 @@ INVALID_ORDER  = 2
 MAX_PROCESSING_TIME = 900 # in seconds
 VALIDATION_ERROR_DELAY = 30 # in seconds
 
-class Queue:
+class Queue(object):
   """
     Step 1: use lists
 
@@ -81,8 +81,6 @@ class Queue:
   #scriptable_method_id_list = ['appendMessage', 'nextMessage', 'delMessage']
 
   def __init__(self):
-    self.is_alive = {}
-    self.is_awake = {}
     self.is_initialized = 0
 
   def initialize(self, activity_tool):
@@ -92,9 +90,6 @@ class Queue:
     if not self.is_initialized:
       self.is_initialized = 1
 
-  def queueMessage(self, activity_tool, m):    
-    activity_tool.deferredQueueMessage(self, m)  
-
   def deleteMessage(self, activity_tool, m):
     if not getattr(m, 'is_deleted', 0):
       # We try not to delete twice
@@ -103,25 +98,10 @@ class Queue:
     m.is_deleted = 1
 
   def dequeueMessage(self, activity_tool, processing_node):
-    pass
-
-  def tic(self, activity_tool, processing_node):
-    # Tic should return quickly to prevent locks or commit transactions at some point
-    if self.dequeueMessage(activity_tool, processing_node):
-      self.sleep(activity_tool, processing_node)
+    raise NotImplementedError
 
   def distribute(self, activity_tool, node_count):
-    pass
-
-  def sleep(self, activity_tool, processing_node):
-    self.is_awake[processing_node] = 0
-
-  def wakeup(self, activity_tool, processing_node):
-    self.is_awake[processing_node] = 1
-
-  def terminate(self, activity_tool, processing_node):
-    self.is_awake[processing_node] = 0
-    self.is_alive[processing_node] = 0
+    raise NotImplementedError
 
   def validate(self, activity_tool, message, check_order_validation=1, **kw):
     """
@@ -163,12 +143,10 @@ class Queue:
       return EXCEPTION
     return VALID
 
-  def getDependentMessageList(self, activity_tool, message, **kw):
+  def getDependentMessageList(self, activity_tool, message):
     message_list = []
-    for k, v in kw.iteritems():
-      result = activity_tool.getDependentMessageList(message, k, v)
-      if result:
-        message_list.extend(result)
+    for k, v in message.activity_kw.iteritems():
+      message_list += activity_tool.getDependentMessageList(message, k, v)
     return message_list
 
   def getExecutableMessageList(self, activity_tool, message, message_dict,
@@ -194,7 +172,7 @@ class Queue:
 
     cached_result = validation_text_dict.get(message.order_validation_text)
     if cached_result is None:
-      message_list = message.getDependentMessageList(self, activity_tool)
+      message_list = self.getDependentMessageList(activity_tool, message)
       transaction.commit() # Release locks.
       if message_list:
         # The result is not empty, so this message is not executable.
@@ -217,24 +195,11 @@ class Queue:
         message_dict[message.uid] = message
     elif cached_result:
       message_dict[message.uid] = message
-    else:
-      pass
-
-  def isAwake(self, activity_tool, processing_node):
-    return self.is_awake[processing_node]
 
   def hasActivity(self, activity_tool, object, processing_node=None, active_process=None, **kw):
     return 0
 
   def flush(self, activity_tool, object, **kw):    
-    pass
-
-  def start(self, active_process=None):
-    # Start queue / activities in queue for given process
-    pass
-
-  def stop(self, active_process=None):
-    # Stop queue / activities in queue for given process
     pass
 
   def loadMessage(self, s, **kw):
@@ -275,19 +240,7 @@ class Queue:
   # Transaction Management
   def prepareQueueMessageList(self, activity_tool, message_list):
     # Called to prepare transaction commit for queued messages
-    pass
-
-  def finishQueueMessage(self, activity_tool_path, m):
-    # Called to commit queued messages
-    pass
-
-  def prepareDeleteMessage(self, activity_tool, m):
-    # Called to prepare transaction commit for deleted messages
-    pass
-
-  def finishDeleteMessage(self, activity_tool_path, m):
-    # Called to commit deleted messages
-    pass
+    raise NotImplementedError
 
   # Registration Management
   def registerActivityBuffer(self, activity_buffer):
@@ -320,8 +273,7 @@ class Queue:
     """
       Get priority from this queue.
       Lower number means higher priority value.
-      Legal value range is [1, 6].
+      Legal value range is [-128, 127].
       Values out of this range might work, but are non-standard.
     """
-    return 6
-
+    return 128

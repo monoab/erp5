@@ -31,7 +31,6 @@
 import unittest
 import time
 
-import transaction
 from Testing import ZopeTestCase
 from testDms import TestDocumentMixin
 from Products.ERP5Type.tests.utils import FileUpload
@@ -81,7 +80,6 @@ class TestDocumentConversionCache(TestDocumentMixin):
     filename = 'TEST-en-002.doc'
     file = makeFileUpload(filename)
     document = self.portal.portal_contributions.newContent(file=file)
-    transaction.commit()
     self.tic()
     format = 'png'
 
@@ -121,7 +119,6 @@ class TestDocumentConversionCache(TestDocumentMixin):
     filename = 'TEST-en-002.doc'
     file = makeFileUpload(filename)
     document = self.portal.portal_contributions.newContent(file=file)
-    transaction.commit()
     self.tic()
     document_url = document.getRelativeUrl()
     document = self.portal.restrictedTraverse(document_url)
@@ -131,22 +128,21 @@ class TestDocumentConversionCache(TestDocumentMixin):
     #Test Conversion Cache
     for format in format_list:
       document.convert(format=format)
-      transaction.commit()
+      self.commit()
       self.assertTrue(document.hasConversion(format=format), 'Cache Storage failed for %s' % (format))
       self.assertTrue(document.getConversionSize(format=format))
     document.edit(title='Foo')
-    transaction.commit()
+    self.commit()
     #Test Cache is cleared
     for format in format_list:
       self.assertFalse(document.hasConversion(format=format), 'Cache Storage failed for %s' % (format))
       self.assertEquals(document.getConversionSize(format=format), 0)
     document.edit(title='Bar')
-    transaction.commit()
     self.tic()
     #Test Conversion Cache after editing
     for format in format_list:
       document.convert(format=format)
-      transaction.commit()
+      self.commit()
       self.assertTrue(document.hasConversion(format=format), 'Cache Storage failed for %s' % (format))
       self.assertTrue(document.getConversionSize(format=format))
 
@@ -168,22 +164,21 @@ class TestDocumentConversionCache(TestDocumentMixin):
     #Test Conversion Cache
     for format in format_list:
       document.convert(format=format)
-      transaction.commit()
+      self.commit()
       self.assertTrue(document.hasConversion(format=format), 'Cache Storage failed for %s' % (format))
       self.assertTrue(document.getConversionSize(format=format))
     document.edit(title='Foo')
-    transaction.commit()
+    self.commit()
     #Test Cache is cleared
     for format in format_list:
       self.assertFalse(document.hasConversion(format=format), 'Cache Storage failed for %s' % (format))
       self.assertEqual(document.getConversionSize(format=format), 0)
     document.edit(title='Bar')
-    transaction.commit()
     self.tic()
     #Test Conversion Cache after editing
     for format in format_list:
       document.convert(format=format)
-      transaction.commit()
+      self.commit()
       self.assertTrue(document.hasConversion(format=format), 'Cache Storage failed for %s' % (format))
       self.assertTrue(document.getConversionSize(format=format))
 
@@ -210,7 +205,6 @@ class TestDocumentConversionCache(TestDocumentMixin):
     document2.convert(format=format)
     self.assertNotEqual(document1.getConversion(format=format),
                         document2.getConversion(format=format))
-    transaction.commit()
     self.tic()
 
   def test_04_PersistentCacheConversionWithFlare(self):
@@ -222,12 +216,10 @@ class TestDocumentConversionCache(TestDocumentMixin):
     default_pref.setPreferredConversionCacheFactory('dms_cache_factory')
     #old preferred value is still cached
     self.portal.portal_caches.clearAllCache()
-    transaction.commit()
     self.tic()
     filename = 'TEST-en-002.doc'
     file = makeFileUpload(filename)
     document = self.portal.portal_contributions.newContent(file=file)
-    transaction.commit()
     self.tic()
     document_url = document.getRelativeUrl()
     document = self.portal.restrictedTraverse(document_url)
@@ -242,14 +234,13 @@ class TestDocumentConversionCache(TestDocumentMixin):
                                       'Cache Storage failed for %s' % (format))
       self.assertTrue(document.getConversionSize(format=format))
     document.edit(title='Foo')
-    transaction.commit()
+    self.commit()
     #Test Cache is cleared
     for format in format_list:
       self.assertFalse(document.hasConversion(format=format),
                                       'Cache Storage failed for %s' % (format))
       self.assertEqual(document.getConversionSize(format=format), 0)
     document.edit(title='Bar')
-    transaction.commit()
     self.tic()
     #Test Conversion Cache after editing
     for format in format_list:
@@ -266,7 +257,6 @@ class TestDocumentConversionCache(TestDocumentMixin):
     filename = 'TEST-en-002.doc'
     file = makeFileUpload(filename)
     document = self.portal.portal_contributions.newContent(file=file)
-    transaction.commit()
     self.tic()
     document_url = document.getRelativeUrl()
     document = self.portal.restrictedTraverse(document_url)
@@ -275,20 +265,18 @@ class TestDocumentConversionCache(TestDocumentMixin):
     document.convert(**kw)
     cache_id = document._getCacheKey(**kw)
     cache_factory = document._getCacheFactory()
-    for cache_plugin in cache_factory.getCachePluginList():
-      cache_entry = cache_plugin.get(cache_id, DEFAULT_CACHE_SCOPE)
-      data_dict = cache_entry.getValue()
-      #get data from cache
-      self.assertTrue(data_dict['content_md5'])
-      self.assertTrue(data_dict['conversion_md5'])
-      self.assertTrue(data_dict['mime'])
-      self.assertTrue(data_dict['data'])
-      self.assertTrue(data_dict['date'])
-      self.assertTrue(data_dict['size'])
-      #Change md5 manualy
-      data_dict['content_md5'] = 'Anything which is not md5'
-      cache_plugin.set(cache_id, DEFAULT_CACHE_SCOPE, data_dict, 100, 0)
-    transaction.commit()
+    data_dict = cache_factory.get(cache_id)
+    #get data from cache
+    self.assertTrue(data_dict['content_md5'])
+    self.assertTrue(data_dict['conversion_md5'])
+    self.assertTrue(data_dict['mime'])
+    self.assertTrue(data_dict['data'])
+    self.assertTrue(data_dict['date'])
+    self.assertTrue(data_dict['size'])
+    #Change md5 manualy
+    data_dict['content_md5'] = 'Anything which is not md5'
+    cache_factory.set(cache_id, data_dict)
+    self.commit()
     self.assertRaises(KeyError, document.getConversion, format='html')
 
   def test_06_check_md5_is_updated(self):
@@ -299,7 +287,6 @@ class TestDocumentConversionCache(TestDocumentMixin):
     filename = 'TEST-en-002.doc'
     file = makeFileUpload(filename)
     document = self.portal.portal_contributions.newContent(file=file)
-    transaction.commit()
     self.tic()
     document_url = document.getRelativeUrl()
     document = self.portal.restrictedTraverse(document_url)
@@ -320,7 +307,6 @@ class TestDocumentConversionCache(TestDocumentMixin):
     default_pref.setPreferredConversionCacheFactory('dms_cache_factory')
     #old preferred value is still cached
     self.portal.portal_caches.clearAllCache()
-    transaction.commit()
     self.tic()
     filename = 'TEST-en-002.doc'
     file = makeFileUpload(filename)
@@ -329,7 +315,6 @@ class TestDocumentConversionCache(TestDocumentMixin):
     module = self.portal.getDefaultModule(portal_type)
     document = module.newContent(id=document_id, file=file,
                                  portal_type=portal_type)
-    transaction.commit()
     self.tic()
     document_url = document.getRelativeUrl()
     document = self.portal.restrictedTraverse(document_url)
@@ -361,7 +346,6 @@ class TestDocumentConversionCache(TestDocumentMixin):
       upload_file = makeFileUpload(data_mapping[portal_type])
       document = module.newContent(portal_type=portal_type)
       document.edit(file=upload_file)
-      transaction.commit()
       self.tic()
       document.convert(format='txt')
       document.convert(format='html')

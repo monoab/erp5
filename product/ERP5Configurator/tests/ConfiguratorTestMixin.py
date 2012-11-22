@@ -41,7 +41,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
   """
   # The list of standard business templates that the configurator should force
   # to install
-  standard_bt5_list = ('erp5_simulation',
+  expected_bt5_list = ('erp5_simulation',
                        'erp5_dhtml_style',
                        'erp5_jquery',
                        'erp5_jquery_ui',
@@ -55,16 +55,34 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
                        'erp5_trade',
                        'erp5_knowledge_pad',
                        'erp5_accounting',
-                       'erp5_tax_resource',
-                       'erp5_discount_resource',
                        'erp5_invoicing',
-                       'erp5_configurator_standard_categories',
+                       'erp5_configurator_standard_solver',
+                       'erp5_configurator_standard_trade_template',
+                       'erp5_configurator_standard_accounting_template',
+                       'erp5_configurator_standard_invoicing_template',
                        'erp5_trade_knowledge_pad',
                        'erp5_crm_knowledge_pad',
                        'erp5_simplified_invoicing',
                        'erp5_ods_style',
                        'erp5_odt_style',
                        'erp5_ooo_import')
+
+  standard_bt5_list = ('erp5_dhtml_style',
+                         'erp5_jquery_ui',
+                         'erp5_xhtml_jquery_style',
+                         'erp5_ingestion_mysql_innodb_catalog',
+                         'erp5_dms',
+                         'erp5_crm',
+                         'erp5_simplified_invoicing',
+                         'erp5_trade_knowledge_pad',
+                         'erp5_crm_knowledge_pad',
+                         'erp5_configurator_standard_solver',
+                         'erp5_configurator_standard_trade_template',
+                         'erp5_configurator_standard_accounting_template',
+                         'erp5_configurator_standard_invoicing_template',
+                         'erp5_ods_style',
+                         'erp5_odt_style',
+                         'erp5_ooo_import')
 
   def getBusinessTemplateList(self):
     return ('erp5_core_proxy_field_legacy',
@@ -95,21 +113,32 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
       self.stepCleanUpRequest()
 
     self.restricted_security = 0
-    # information to know if a business template is a standard business
-    # template or a custom one
-    self.portal.portal_templates.updateRepositoryBusinessTemplateList(
-                                    ['http://www.erp5.org/dists/snapshot/bt5/'])
+    self.setupAutomaticBusinessTemplateRepository(
+                 searchable_business_template_list=["erp5_core", "erp5_base"])
 
     # it is required by SecurityTestCase
     self.workflow_tool = self.portal.portal_workflow
     self.setDefaultSitePreference()
+    self.setSystemPreference()
     self.portal.portal_activities.unsubscribe()
+
+  def setSystemPreference(self):
+    portal_type = 'System Preference'
+    preference_list = self.portal.portal_preferences.contentValues(
+                                                       portal_type=portal_type)
+    if not preference_list:
+      preference = self.portal.portal_preferences.newContent(
+                                                       portal_type=portal_type)
+    else:
+      preference = preference_list[0]
+    conversion_dict = _getConversionServerDict()
+    preference.setPreferredOoodocServerAddress(conversion_dict['hostname'])
+    preference.setPreferredOoodocServerPortNumber(conversion_dict['port'])
+    if self.portal.portal_workflow.isTransitionPossible(preference, 'enable'):
+      preference.enable()
 
   def setDefaultSitePreference(self):
     default_pref = self.portal.portal_preferences.default_site_preference
-    conversion_dict = _getConversionServerDict()
-    default_pref.setPreferredOoodocServerAddress(conversion_dict['hostname'])
-    default_pref.setPreferredOoodocServerPortNumber(conversion_dict['port'])
     if self.portal.portal_workflow.isTransitionPossible(default_pref, 'enable'):
       default_pref.enable()
     return default_pref
@@ -142,7 +171,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     response_dict = self.portal.portal_configurator._next(
                             business_configuration, next_dict)
     sequence.edit(response_dict=response_dict)
-    
+
   def stepConfiguratorPrevious(self, sequence=None, sequence_list=None, **kw):
     """ Go to the previous form. """
     business_configuration = sequence.get("business_configuration")
@@ -156,9 +185,6 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     business_configuration = sequence.get("business_configuration")
     # second one: install some standard business templates
     standard_bt5_config_save = business_configuration['1']
-    self.assertEquals(len(self.standard_bt5_list),
-          len(standard_bt5_config_save.contentValues(
-                  portal_type='Standard BT5 Configurator Item')))
     self.assertEquals(
       set(self.standard_bt5_list),
       set([x.bt5_id for x in standard_bt5_config_save.contentValues()]))
@@ -179,14 +205,18 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     self.assertEquals('Configure Organisation', response_dict['next'])
     self.assertCurrentStep('Your organisation', response_dict)
 
-  def _stepSetupOrganisationConfiguratorItem(self, sequence=None, sequence_list=None, **kw):
+  def stepSetupOrganisationConfiguratorItem(self, sequence=None, sequence_list=None, **kw):
     """ Create one Organisation """
+    default_address_city = sequence.get('organisation_default_address_city')
+    default_address_region = sequence.get('organisation_default_address_region')
     next_dict = dict(
         field_your_title='My Organisation',
         field_your_default_email_text='me@example.com',
         field_your_default_telephone_text='01234567890',
         field_your_default_address_street_address='.',
-        field_your_default_address_zip_code='59000')
+        field_your_default_address_zip_code='59000',
+        field_your_default_address_city=default_address_city,
+        field_your_default_address_region=default_address_region)
     next_dict.update(**kw)
     sequence.edit(next_dict=next_dict)
 
@@ -256,31 +286,18 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     self.assertEquals('Configure accounting', response_dict['next'])
     self.assertCurrentStep('Accounting', response_dict)
 
-  def _stepSetupAccountingConfiguration(self, accounting_plan):
+  def stepSetupAccountingConfiguration(self, sequence=None, sequence_list=None, **kw):
     """ Setup up the accounting configuration """
-    return dict(field_your_accounting_plan=accounting_plan,
+    accounting_plan=sequence.get('configuration_accounting_plan')
+    next_dict = dict(field_your_accounting_plan=accounting_plan,
                 subfield_field_your_period_start_date_year='2008',
                 subfield_field_your_period_start_date_month='01',
                 subfield_field_your_period_start_date_day='01',
                 subfield_field_your_period_stop_date_year='2008',
                 subfield_field_your_period_stop_date_month='12',
                 subfield_field_your_period_stop_date_day='31',
-                field_your_period_title='2008',
+                field_your_period_title='2008'
            )
-
-  def stepSetupAccountingConfigurationFrance(self, sequence=None, sequence_list=None, **kw):
-    """ Setup up the French accounting configuration """
-    next_dict = self._stepSetupAccountingConfiguration(accounting_plan='fr')
-    sequence.edit(next_dict=next_dict)
-
-  def stepSetupAccountingConfigurationBrazil(self, sequence=None, sequence_list=None, **kw):
-    """ Setup up the Brazilian accounting configuration """
-    next_dict = self._stepSetupAccountingConfiguration(accounting_plan='br')
-    sequence.edit(next_dict=next_dict)
-
-  def stepSetupAccountingConfigurationRussia(self, sequence=None, sequence_list=None, **kw):
-    """ Setup up the Russian accounting configuration """
-    next_dict = self._stepSetupAccountingConfiguration(accounting_plan='ru')
     sequence.edit(next_dict=next_dict)
 
   def stepCheckConfigurePreferenceForm(self, sequence=None, sequence_list=None, **kw):
@@ -377,38 +394,20 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
                 accounting_transaction_gap='gap/ru/ru2000',
                 gap='ru/ru2000/80')
 
-  def _stepSetupPreferenceConfiguration(self, price_currency, lang):
+  def stepSetupPreferenceConfiguration(self, sequence=None, sequence_list=None, **kw):
     """ Setup the preference configuration """
-    return dict(field_your_price_currency=price_currency,
+
+    lang = sequence.get('configuration_lang')
+    price_currency = sequence.get('configuration_price_currency')
+    next_dict = dict(field_your_price_currency=price_currency,
                 field_your_preferred_date_order='dmy',
                 field_your_lang=lang,
                 default_field_your_lang=1,)
 
-  def stepSetupPreferenceConfigurationFrance(self, sequence=None, sequence_list=None, **kw):
-    """ Setup the French preference configuration """
-    next_dict = self._stepSetupPreferenceConfiguration(
-                                               price_currency='EUR;0.01;Euro',
-                                               lang='erp5_l10n_fr',)
-    sequence.edit(next_dict=next_dict)
+    currency_id = sequence.get('configuration_currency_reference')
+    sequence.edit(next_dict=next_dict, currency_id=currency_id)
 
-  def stepSetupPreferenceConfigurationBrazil(self, sequence=None, sequence_list=None, **kw):
-    """ Setup the Brazil preference configuration """
-    next_dict = self._stepSetupPreferenceConfiguration(
-                                      price_currency='BRL;0.01;Brazilian Real',
-                                      lang='erp5_l10n_pt-BR',)
-    sequence.edit(next_dict=next_dict)
-
-  def stepSetupPreferenceConfigurationRussia(self, sequence=None, sequence_list=None, **kw):
-    """ Setup the Russian preference configuration """
-    next_dict = self._stepSetupPreferenceConfiguration(
-                                      price_currency='BYR;0.01;Belarusian Rouble',
-                                      lang='erp5_l10n_ru',)
-    sequence.edit(next_dict=next_dict)
-
-  def _stepCheckPreferenceConfigurationItemList(self, business_configuration,
-                                                      currency_title,
-                                                      currency_reference,
-                                                      bt5_id):
+  def stepCheckPreferenceConfigurationItemList(self, sequence=None, sequence_list=None, **kw):
     """
       Check the creation of:
       - Currency Configurator Item
@@ -416,6 +415,11 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
       - System Preference Configurator Item
       - Standard BT5 Configurator Item
     """
+    currency_title = sequence.get('configuration_currency_title')
+    currency_reference = sequence.get('configuration_currency_reference')
+    bt5_id = sequence.get('configuration_lang')
+    business_configuration = sequence.get("business_configuration")
+
     # this created a currency
     preferences_business_configuration_save = business_configuration.\
                       contentValues(portal_types='Configuration Save')[-1]
@@ -460,48 +464,6 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     self.assertEquals(bt5_id,
             bt5_business_configuration_item.bt5_id)
 
-  def stepCheckPreferenceConfigurationItemListFrance(self, sequence=None, sequence_list=None, **kw):
-    """
-      Check the creation of:
-      - Currency Configurator Item
-      - Service Configurator Item
-      - System Preference Configurator Item
-      - Standard BT5 Configurator Item
-    """
-    self._stepCheckPreferenceConfigurationItemList(
-                business_configuration=sequence.get("business_configuration"),
-                currency_title='Euro',
-                currency_reference='EUR',
-                bt5_id='erp5_l10n_fr')
-
-  def stepCheckPreferenceConfigurationItemListBrazil(self, sequence=None, sequence_list=None, **kw):
-    """
-      Check the creation of:
-      - Currency Configurator Item
-      - Service Configurator Item
-      - System Preference Configurator Item
-      - Standard BT5 Configurator Item
-    """
-    self._stepCheckPreferenceConfigurationItemList(
-                business_configuration=sequence.get("business_configuration"),
-                currency_title='Brazilian Real',
-                currency_reference='BRL',
-                bt5_id='erp5_l10n_pt-BR')
-
-  def stepCheckPreferenceConfigurationItemListRussia(self, sequence=None, sequence_list=None, **kw):
-    """
-      Check the creation of:
-      - Currency Configurator Item
-      - Service Configurator Item
-      - System Preference Configurator Item
-      - Standard BT5 Configurator Item
-    """
-    self._stepCheckPreferenceConfigurationItemList(
-                business_configuration=sequence.get("business_configuration"),
-                currency_title='Belarusian Rouble',
-                currency_reference='BYR',
-                bt5_id='erp5_l10n_ru')
-
   def stepCheckConfigureInstallationForm(self, sequence=None, sequence_list=None, **kw):
     """ Check the installation form """
     response_dict = sequence.get("response_dict")
@@ -510,12 +472,11 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     self.assertEquals('Previous', response_dict['previous'])
     self.assertEquals('Install', response_dict['next'])
 
-    self.assertCurrentStep('ERP5 installation', response_dict)
+    self.assertCurrentStep('Download', response_dict)
 
   def stepSetupInstallConfiguration(self, sequence=None, sequence_list=None, **kw):
     """ Install the Configuration """
-    next_dict = {}
-    sequence.edit(next_dict=next_dict)
+    sequence.edit(next_dict={})
 
   def stepCheckInstallConfiguration(self, sequence=None, sequence_list=None, **kw):
     """ Check the installation of the configuration """
@@ -529,7 +490,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
 
     # check if bt5 are installed.
     bt5_title_list = self.portal.portal_templates.getInstalledBusinessTemplateTitleList()
-    expected_list = self.standard_bt5_list + bt5_tuple
+    expected_list = self.expected_bt5_list + bt5_tuple
     self.assertEquals([i for i in expected_list if i not in bt5_title_list], [])
     
     self.assertFalse(bc_id in bt5_title_list)
@@ -617,7 +578,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
         self.failUnlessUserCanPassWorkflowTransition(
                     username, 'cancel_action', event)
 
-      # everybody can submit
+      # everybody can plan
       for username in self.all_username_list:
         self.failUnlessUserCanPassWorkflowTransition(
                     username, 'plan_action', event)
@@ -625,17 +586,17 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
       event.plan()
       self.assertEquals('planned', event.getSimulationState())
 
-      # everybody can request or post a submitted event
+      # everybody can confirm or send a planned event
       for username in self.all_username_list:
         self.failUnlessUserCanPassWorkflowTransition(
-                    username, 'order_action', event)
+                    username, 'confirm_action', event)
         self.failUnlessUserCanPassWorkflowTransition(
                     username, 'start_action', event)
 
       event.start()
       self.assertEquals('started', event.getSimulationState())
 
-      # everybody can deliver a posted event
+      # everybody can deliver a sent event
       for username in self.all_username_list:
         self.failUnlessUserCanPassWorkflowTransition(
                     username, 'deliver_action', event)
@@ -846,9 +807,13 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
             organisation.getVisibleAllowedContentTypeList())
 
   def stepValidatedAccountingPeriods(self, sequence=None, sequence_list=None, **kw):
+
+    currency_id = sequence.get("currency_id")
+    currency_value = getattr(self.portal.currency_module, currency_id)
+
     organisation = self.portal.organisation_module.newContent(
                           portal_type='Organisation',
-                          price_currency_value=self.portal.currency_module.EUR,
+                          price_currency_value=currency_value,
                           group='my_group')
     accounting_period = organisation.newContent(
                           portal_type='Accounting Period',
@@ -1132,7 +1097,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     # (skip some states)
     transaction.start()
     self.assertEquals('started', transaction.getSimulationState())
-    self.stepTic()
+    self.tic()
 
     for username in self.all_username_list:
       # everybody can view
@@ -1188,7 +1153,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     # in started state, we can modify again, and go back to stopped state
     transaction.restart()
     self.assertEquals('started', transaction.getSimulationState())
-    self.stepTic()
+    self.tic()
 
     for username in self.accountant_username_list:
       self.failUnlessUserCanModifyDocument(username, transaction)
@@ -1272,7 +1237,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     # (skip some states)
     transaction.start()
     self.assertEquals('started', transaction.getSimulationState())
-    self.stepTic()
+    self.tic()
 
     for username in self.all_username_list:
       # everybody can view
@@ -1328,7 +1293,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     # in started state, we can modify again, and go back to stopped state
     transaction.restart()
     self.assertEquals('started', transaction.getSimulationState())
-    self.stepTic()
+    self.tic()
 
     for username in self.accountant_username_list:
       self.failUnlessUserCanModifyDocument(username, transaction)
@@ -1418,7 +1383,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     # (skip some states)
     transaction.start()
     self.assertEquals('started', transaction.getSimulationState())
-    self.stepTic()
+    self.tic()
 
     for username in self.all_username_list:
       # everybody can view
@@ -1474,7 +1439,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     # in started state, we can modify again, and go back to stopped state
     transaction.restart()
     self.assertEquals('started', transaction.getSimulationState())
-    self.stepTic()
+    self.tic()
 
     for username in self.accountant_username_list:
       self.failUnlessUserCanModifyDocument(username, transaction)
@@ -1548,7 +1513,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     # (skip some states)
     transaction.start()
     self.assertEquals('started', transaction.getSimulationState())
-    self.stepTic()
+    self.tic()
 
     for username in self.all_username_list:
       # everybody can view
@@ -1604,7 +1569,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
     # in started state, we can modify again, and go back to stopped state
     transaction.restart()
     self.assertEquals('started', transaction.getSimulationState())
-    self.stepTic()
+    self.tic()
 
     for username in self.accountant_username_list:
       self.failUnlessUserCanModifyDocument(username, transaction)
@@ -1673,7 +1638,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
 
     accounting_transaction_a.setCausalityValueList([accounting_transaction_b,
                                                     accounting_transaction_c])
-    self.stepTic()
+    self.tic()
   
     accounting_transaction_list = accounting_transaction_a.\
           AccountingTransaction_getCausalityGroupedAccountingTransactionList()
@@ -1690,7 +1655,7 @@ class TestLiveConfiguratorWorkflowMixin(SecurityTestCase):
   
     accounting_transaction_x_related_to_a.delete()
     accounting_transaction_y_related_to_a.cancel()
-    self.stepTic()
+    self.tic()
  
     accounting_transaction_list = accounting_transaction_a.\
           AccountingTransaction_getCausalityGroupedAccountingTransactionList()

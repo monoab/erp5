@@ -27,7 +27,6 @@
 ##############################################################################
 
 import unittest
-import transaction
 
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from Products.ERP5Type.UnrestrictedMethod import UnrestrictedMethod
@@ -67,6 +66,8 @@ class TestPackingListMixin(TestOrderMixin):
         Tic
         ConfirmOrder
         Tic
+        PackingListBuilderAlarm
+        Tic
         CheckOrderSimulation
         CheckDeliveryBuilding
         CheckPackingListIsNotDivergent
@@ -82,6 +83,8 @@ class TestPackingListMixin(TestOrderMixin):
         Tic
         ConfirmOrder
         Tic
+        PackingListBuilderAlarm
+        Tic
         """
   default_sequence_with_duplicated_lines = default_order_sequence + """
         CreateNotVariatedResource
@@ -96,6 +99,8 @@ class TestPackingListMixin(TestOrderMixin):
         OrderOrder
         Tic
         ConfirmOrder
+        Tic
+        PackingListBuilderAlarm
         Tic
         CheckOrderSimulation
         CheckDeliveryBuilding
@@ -117,6 +122,8 @@ class TestPackingListMixin(TestOrderMixin):
         Tic
         ConfirmOrder
         Tic
+        PackingListBuilderAlarm
+        Tic
         CheckOrderSimulation
         CheckDeliveryBuilding
         CheckPackingListIsNotDivergent
@@ -133,6 +140,8 @@ class TestPackingListMixin(TestOrderMixin):
         OrderOrder
         Tic
         ConfirmOrder
+        Tic
+        PackingListBuilderAlarm
         Tic
         CheckOrderSimulation
         CheckDeliveryBuilding
@@ -935,7 +944,7 @@ class TestPackingListMixin(TestOrderMixin):
     """
     if packing_list is None:
       packing_list = sequence.get('packing_list')
-    transaction.commit()
+    self.commit()
     self.assertEquals(1,packing_list.isPacked())
     self.assertEquals('packed',packing_list.getContainerState())
 
@@ -1487,7 +1496,6 @@ class TestPackingList(TestPackingListMixin, ERP5TypeTestCase) :
                             quantity=10,
                             price=3)
     packing_list.confirm()
-    transaction.commit()
     self.tic()
 
     odt = packing_list.PackingList_viewAsODT()
@@ -1556,14 +1564,12 @@ class TestPackingList(TestPackingListMixin, ERP5TypeTestCase) :
         resource_value=resource,
         quantity=1)
     packing_list.confirm()
-    transaction.commit()
     self.tic()
     self.assertEqual('confirmed', packing_list.getSimulationState())
     simulation_movement = packing_list_line.getDeliveryRelatedValue(
         portal_type='Simulation Movement')
     self.assertEqual('confirmed', simulation_movement.getSimulationState())
     packing_list.cancel()
-    transaction.commit()
     self.tic()
     self.assertEqual('cancelled', packing_list.getSimulationState())
     self.assertEqual('cancelled', simulation_movement.getSimulationState())
@@ -1622,6 +1628,8 @@ class TestPackingList(TestPackingListMixin, ERP5TypeTestCase) :
         OrderOrder
         Tic
         ConfirmOrder
+        Tic
+        PackingListBuilderAlarm
         Tic
         CheckOrderSimulation
         CheckDeliveryBuilding
@@ -1727,6 +1735,14 @@ class TestPackingList(TestPackingListMixin, ERP5TypeTestCase) :
                             portal_type=self.packing_list_line_portal_type,
                             reference='bbb',
                             int_index=1)
+    line_bbb_cell_bbb = line_bbb.newContent(
+                            portal_type=self.packing_list_cell_portal_type,
+                            reference='bbb',
+                            int_index=2)
+    line_bbb_cell_aaa = line_bbb.newContent(
+                            portal_type=self.packing_list_cell_portal_type,
+                            reference='aaa',
+                            int_index=1)
     line_aaa = packing_list.newContent(
                             portal_type=self.packing_list_line_portal_type,
                             reference='aaa',
@@ -1739,19 +1755,18 @@ class TestPackingList(TestPackingListMixin, ERP5TypeTestCase) :
                             portal_type=self.packing_list_line_portal_type,
                             reference='ddd',
                             int_index=3)
-    transaction.commit()
     self.tic()
     # check it's possible to sort by reference
     reference_result = packing_list.getMovementList(sort_on=
         [('reference', 'descending')])
-    self.assertEquals(reference_result, [line_aaa, line_bbb, line_ccc,
-      line_ddd])
+    self.assertEquals(reference_result, [line_ddd, line_ccc,
+      line_bbb_cell_bbb, line_bbb_cell_aaa, line_aaa])
 
     # check it's possible to sort by int_index
     int_index_result = packing_list.getMovementList(sort_on=
         [('int_index', 'ascending')])
-    self.assertEquals(int_index_result, [line_ccc, line_ddd, line_aaa,
-      line_bbb])
+    self.assertEquals(int_index_result, [line_bbb_cell_aaa, line_bbb_cell_bbb,
+      line_aaa, line_ddd, line_ccc])
 
   def test_subcontent_reindexing_container_line_cell(self):
     """Tests, that indexation of Packing List are propagated to subobjects
@@ -1818,6 +1833,8 @@ class TestPackingList(TestPackingListMixin, ERP5TypeTestCase) :
         Tic
         ConfirmOrder
         Tic
+        PackingListBuilderAlarm
+        Tic
         CheckOrderSimulation
         CheckDeliveryBuilding
         CheckPackingListIsNotDivergent
@@ -1843,7 +1860,6 @@ class TestSolvingPackingList(TestPackingListMixin, ERP5TypeTestCase):
     self.portal.portal_types['Solver Process'].setTypeAllowedContentTypeList(
       self.original_allowed_content_types)
     self.portal.portal_solvers.manage_delObjects(self.added_target_solver_list)
-    transaction.commit()
     self.tic()
 
   @UnrestrictedMethod

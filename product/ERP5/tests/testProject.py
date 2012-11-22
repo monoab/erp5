@@ -30,9 +30,7 @@
 import unittest
 
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
-import transaction
 from DateTime import DateTime
-from Products.ERP5.tests.utils import newSimulationExpectedFailure
 
 class TestProject(ERP5TypeTestCase):
   """ Test for Project API and scripts and forms 
@@ -52,6 +50,7 @@ class TestProject(ERP5TypeTestCase):
             'erp5_simulation',
             'erp5_trade',
             'erp5_project',
+            'erp5_configurator_standard_trade_template',
             'erp5_simulation_test')
 
   def afterSetUp(self):
@@ -93,13 +92,12 @@ class TestProject(ERP5TypeTestCase):
           )
 
     # and all this available to catalog
-    transaction.commit()
     self.tic()
 
   def beforeTearDown(self):
     """Remove all documents.
     """
-    transaction.abort()
+    self.abort()
 
     portal = self.getPortal()
     portal.task_module.manage_delObjects(
@@ -109,10 +107,8 @@ class TestProject(ERP5TypeTestCase):
     portal.portal_simulation.manage_delObjects(
                       list(portal.portal_simulation.objectIds()))
 
-    transaction.commit()
     self.tic()
 
-  @newSimulationExpectedFailure
   def testProject_getSourceProjectRelatedTaskReportList(self):
     """
      Basic Test if the script behaviour as expected.
@@ -135,10 +131,10 @@ class TestProject(ERP5TypeTestCase):
               stop_date=DateTime('2009/07/26'),
               )
 
-    self.stepTic()
+    self.tic()
     task.plan()
     
-    self.stepTic()
+    self.tic()
     # Script Used for Task Tab
     task_line_list = project.Project_getSourceProjectRelatedTaskList()
     self.assertEquals(1, len(task_line_list))
@@ -151,7 +147,7 @@ class TestProject(ERP5TypeTestCase):
     self.assertEquals(task_line_list[0], task.default_task_line)
 
     task.confirm()
-    self.stepTic()
+    self.tic()
 
     # Script Used for Task Tab keep only showing tasks.
     task_line_list = project.Project_getSourceProjectRelatedTaskList()

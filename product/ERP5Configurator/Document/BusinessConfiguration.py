@@ -27,13 +27,10 @@
 #
 ##############################################################################
 
-import time
 from AccessControl import ClassSecurityInfo
 from Globals import PersistentMapping
 from Acquisition import aq_base
 from Products.ERP5Type import Permissions, PropertySheet
-from zLOG import LOG, INFO
-from cStringIO import StringIO
 
 from Products.ERP5Configurator.Tool.ConfiguratorTool import _validateFormToRequest
 from Products.ERP5.Document.Item import Item
@@ -67,8 +64,6 @@ class BusinessConfiguration(Item):
                     , PropertySheet.Arrow
                     , PropertySheet.BusinessConfiguration
                     , PropertySheet.Comment
-                    , PropertySheet.Version
-                    , PropertySheet.DefaultImage
                     )
 
   security.declareProtected(Permissions.View, 'isInitialConfigurationState')
@@ -136,7 +131,8 @@ class BusinessConfiguration(Item):
     configuration_save = self._getConfSaveForStateFromWorkflowHistory()
     if configuration_save is None:
       ## we haven't saved any configuration save for this state so create new one
-      configuration_save = self.newContent(portal_type='Configuration Save')
+      configuration_save = self.newContent(portal_type='Configuration Save', 
+                                           title=current_state.getTitle())
     else:
       ## we have already created configuration save for this state
       ## so remove from it already existing configuration items
@@ -263,19 +259,6 @@ class BusinessConfiguration(Item):
     form = getattr(self, self.getNextTransition().getTransitionFormId())
     return _validateFormToRequest(form, REQUEST, **kw)
 
-  #############
-  ## misc    ##
-  #############
-  security.declarePrivate('_getConfigurationStack')
-  def _getConfigurationStack(self):
-    """ Return list of created by client configuration save objects 
-        sort on id which is an integer. """
-    result = self.objectValues('ERP5 Configuration Save')
-    result = map(None, result)
-    result.sort(lambda x, y: cmp(x.getIntIndex(x.getIntId()),
-                                 y.getIntIndex(y.getIntId())))
-    return result
-
   security.declarePrivate('_getConfSaveForStateFromWorkflowHistory')
   def _getConfSaveForStateFromWorkflowHistory(self):
     """ Get from workflow history configuration save for this state """
@@ -283,8 +266,7 @@ class BusinessConfiguration(Item):
     current_state = self.getCurrentStateValue()
     transition = self.getNextTransition()
     next_state = self.unrestrictedTraverse(transition.getDestination())
-    workflow_history = current_state.getWorkflowHistory(self)
-    for wh in workflow_history:
+    for wh in current_state.getWorkflowHistory(self):
       if next_state == self.unrestrictedTraverse(wh['current_state']):
         configuration_save = self.unrestrictedTraverse(wh['configuration_save_url'])
     return configuration_save
@@ -340,12 +322,11 @@ class BusinessConfiguration(Item):
   security.declareProtected(Permissions.View, 'getGlobalConfigurationAttr')
   def getGlobalConfigurationAttr(self, key, default=None):
     """ Get global business configuration attribute. """
-    global_configuration_attributes = getattr(self, '_global_configuration_attributes', {})
-    return global_configuration_attributes.get(key, default)
+    return getattr(self, '_global_configuration_attributes', {}).get(key, default)
 
   ############# Instance and Business Configuration ########################
   security.declareProtected(Permissions.ModifyPortalContent, 'buildConfiguration')
-  def buildConfiguration(self, execute_after_setup_script=1):
+  def buildConfiguration(self):
     """ 
       Build list of business templates according to already saved 
       Configuration Saves (i.e. user input).
@@ -353,15 +334,16 @@ class BusinessConfiguration(Item):
       actions and Configurator requets
     """
     kw = dict(tag="start_configuration_%s" % self.getId(), 
-              after_method_id=["recursiveImmediateReindexObject",
-                               'immediateReindexObject'])
-    start = time.time()
-    LOG("CONFIGURATOR", INFO, 
-        'Build process started for %s' % self.getRelativeUrl())
+              after_method_id=["updateBusinessTemplateFromUrl",
+                               "recursiveImmediateReindexObject",
+                               "immediateReindexObject"])
     # build
-    for configuration_save in self._getConfigurationStack():
+    configuration_save_list = self.contentValues(portal_type='Configuration Save')
+    configuration_save_list.sort(lambda x, y: cmp(x.getIntIndex(x.getIntId()),
+                                                  y.getIntIndex(y.getIntId())))
+    for configuration_save in configuration_save_list:
       # XXX: check which items are configure-able
-      configuration_item_list = [x for x in configuration_save.contentValues()]
+      configuration_item_list = configuration_save.contentValues()
       configuration_item_list.sort(lambda x, y: cmp(x.getIntId(), y.getIntId()))
       for configurator_item in configuration_item_list:
         configurator_item.activate(**kw).build(self.getRelativeUrl())
@@ -369,31 +351,11 @@ class BusinessConfiguration(Item):
         kw["tag"] = "configurator_item_%s_%s" % (configurator_item.getId(),
                                                  configurator_item.getUid())
 
-    LOG('CONFIGURATOR', INFO, 
-        'Build process started for %s ended after %.02fs' % (self.getRelativeUrl(),
-                                                             time.time() - start))
+    kw["tag"] = "final_configuration_step_%s" % self.getId()
+    kw["after_method_id"] = ["build", 'immediateReindexObject', \
+                             "recursiveImmediateReindexObject"]
 
-    if execute_after_setup_script:
-      kw["tag"] = "final_configuration_step_%s" % self.getId()
-      kw["after_method_id"] = ["build", 'immediateReindexObject', \
-                               "recursiveImmediateReindexObject"]
-
-      self.activate(**kw).ERP5Site_afterConfigurationSetup()
+    self.activate(**kw).ERP5Site_afterConfigurationSetup()
 
     if self.portal_workflow.isTransitionPossible(self, 'install'):
       self.activate(after_tag=kw["tag"]).install()
-
-  security.declareProtected(Permissions.ModifyPortalContent, 'resetBusinessConfiguration')
-  def resetBusinessConfiguration(self):
-    """ 
-      Reset Business Confiration at server side.
-      Remove all traces from user input (i.e. Configuration Saves, workflow history).
-    """
-    object_ids = []
-    for obj in self.contentValues(filter={'portal_type': ['Configuration Save']}):
-      object_ids.append(obj.getId())
-    self.manage_delObjects(object_ids)
-    del self.workflow_history
-    # ERP5 Workflow initialization
-    erp5_workflow = self.getResourceValue()
-    erp5_workflow.initializeDocument(self)

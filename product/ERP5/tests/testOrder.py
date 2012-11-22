@@ -31,7 +31,6 @@
 import unittest
 import os
 
-import transaction
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from Products.ERP5Type.tests.utils import FileUpload,\
     SubcontentReindexingWrapper
@@ -52,7 +51,8 @@ class TestOrderMixin(SubcontentReindexingWrapper):
   order_cell_portal_type = 'Sale Order Cell'
   applied_rule_portal_type = 'Applied Rule'
   simulation_movement_portal_type = 'Simulation Movement'
-  datetime = DateTime()
+  # see comment about self.datetime on afterSetUp() below
+  datetime = DateTime() - 2
   packing_list_portal_type = 'Sale Packing List'
   packing_list_line_portal_type = 'Sale Packing List Line'
   packing_list_cell_portal_type = 'Sale Packing List Cell'
@@ -63,10 +63,11 @@ class TestOrderMixin(SubcontentReindexingWrapper):
   def getBusinessTemplateList(self):
     """
     """
-    return ('erp5_core_proxy_field_legacy',
-            'erp5_base','erp5_pdm', 'erp5_simulation', 'erp5_trade',
-            'erp5_apparel', 'erp5_project', 'erp5_simulation_test',
-            'erp5_administration')
+    return ('erp5_core_proxy_field_legacy', 'erp5_base','erp5_pdm',
+            'erp5_simulation', 'erp5_trade', 'erp5_apparel', 'erp5_project',
+            'erp5_configurator_standard_solver',
+            'erp5_configurator_standard_trade_template',
+            'erp5_simulation_test', 'erp5_administration')
 
   def login(self, quiet=0, run=1):
     uf = self.getPortal().acl_users
@@ -92,18 +93,30 @@ class TestOrderMixin(SubcontentReindexingWrapper):
 
     if preference.getPreferenceState() == 'disabled':
       preference.enable()
-    transaction.commit()
     self.tic()
 
-  def afterSetUp(self, quiet=1, run=1):
+  def afterSetUp(self):
+    # XXX-Leo: cannot call super here, because other classes call
+    # SuperClass.afterSetUp(self) directly... this needs to be cleaned
+    # up, including consolidating all conflicting definitions of
+    # .createCategories()
+    #super(TestOrderMixin, self).afterSetUp()
     self.login()
-    portal = self.getPortal()
     self.category_tool = self.getCategoryTool()
     portal_catalog = self.getCatalogTool()
     #portal_catalog.manage_catalogClear()
     self.createCategories()
     self.validateRules()
     self.setUpPreferences()
+    # pin datetime on the day before yesterday, to make sure that:
+    #
+    # 1. All calculations are done relative to the same time
+    # 2. We don't get random failures when tests run close to midnight
+    self.pinDateTime(self.datetime)
+
+  def beforeTearDown(self):
+    self.unpinDateTime()
+    super(TestOrderMixin, self).beforeTearDown()
 
   def createCurrency(self):
     currency_module = self.getPortal().currency_module
@@ -591,7 +604,7 @@ class TestOrderMixin(SubcontentReindexingWrapper):
     """
 
     # order_line needs to be indexed for 'fast' calculation to work as expected
-    self.stepTic()
+    self.tic()
 
     order_line = sequence.get('order_line')
     base_id = 'movement'
@@ -617,7 +630,7 @@ class TestOrderMixin(SubcontentReindexingWrapper):
     """
 
     # order_line needs to be indexed for 'fast' calculation to work as expected
-    self.stepTic()
+    self.tic()
 
     order_line = sequence.get('order_line')
     base_id = 'movement'
@@ -664,7 +677,7 @@ class TestOrderMixin(SubcontentReindexingWrapper):
     self.assertEquals(0, order_line.getTotalPrice(fast=1))
     self.assertEquals(0, order_line.getTotalQuantity(fast=1))
     self.assertNotEquals(total_price, 0)
-    self.stepTic()
+    self.tic()
     self.assertEquals(len(portal_catalog(relative_url=
                                          order_line.getRelativeUrl())),1)
     self.assertEquals(total_price, order_line.getTotalPrice(fast=1))
@@ -679,7 +692,7 @@ class TestOrderMixin(SubcontentReindexingWrapper):
     """
 
     # order needs to be indexed for 'fast' calculation to work as expected
-    self.stepTic()
+    self.tic()
 
     order = sequence.get('order')
     order_line_list = order.objectValues( \
@@ -699,7 +712,7 @@ class TestOrderMixin(SubcontentReindexingWrapper):
     """
 
     # order needs to be indexed for 'fast' calculation to work as expected
-    self.stepTic()
+    self.tic()
 
     order = sequence.get('order')
     order_line_list = order.objectValues( \
@@ -732,7 +745,7 @@ class TestOrderMixin(SubcontentReindexingWrapper):
     self.assertEquals(total_price, order.getTotalPrice(fast=0))
     self.assertNotEquals(total_price, 0)
     self.assertEquals(0, order.getTotalPrice(fast=1))
-    self.stepTic()
+    self.tic()
     self.assertEquals(1, len(portal_catalog(relative_url=order.getRelativeUrl())))
     self.assertEquals(total_price, order.getTotalPrice(fast=1))
     self.assertEquals(total_price, order.getTotalPrice(fast=0))
@@ -1121,23 +1134,13 @@ class TestOrderMixin(SubcontentReindexingWrapper):
     order_line = sequence.get('order_line')
     order_line.getParentValue().manage_delObjects([order_line.getId()])
 
-  def stepCheckOrderSimulationStable(self, sequence=None, \
-      sequence_list=None, **kw):
+  def stepCheckOrderConvergent(self, sequence=None, sequence_list=None, **kw):
     """
     Tests that the simulation related to the order is stable and not
     divergent
     """
     order = sequence.get('order')
-    order_movement_list = order.getMovementList()
-    related_simulation_list = []
-    for order_movement in order_movement_list:
-      related_simulation_list.extend(order_movement.getOrderRelatedValueList())
-    related_applied_rule_list = {}
-    for simulation_mvt in related_simulation_list:
-      self.assertFalse(simulation_mvt.isDivergent())
-      related_applied_rule_list[simulation_mvt.getParentValue()]=1
-    for applied_rule in related_applied_rule_list.keys():
-      self.assertTrue(applied_rule.isStable())
+    self.assertTrue(order.isConvergent())
 
   def stepPackingListAdoptPrevision(self,sequence=None, sequence_list=None,
                                     **kw):
@@ -1215,6 +1218,14 @@ class TestOrderMixin(SubcontentReindexingWrapper):
         self.assertEquals(1, len(simulation_state_list))
         self.assertEquals(order.getSimulationState(),
                           simulation_state_list[0])
+
+  def stepPackingListBuilderAlarm(self, sequence=None,
+                                  sequence_list=None, **kw):
+    # global builder alarm does not exist in legacy simulation
+    # business templates.
+    alarm = getattr(self.portal.portal_alarms, 'packing_list_builder_alarm', None)
+    if alarm is not None:
+      alarm.activeSense()
 
 class TestOrder(TestOrderMixin, ERP5TypeTestCase):
   """
@@ -1818,6 +1829,8 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                       stepTic \
                       stepConfirmOrder \
                       stepTic \
+                      stepPackingListBuilderAlarm \
+                      stepTic \
                       stepCheckOrderSimulation \
                       '
     sequence_list.addSequenceString(sequence_string)
@@ -1862,6 +1875,8 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                       stepCheckDeliveryBuilding \
                       stepConfirmOrder \
                       stepTic \
+                      stepPackingListBuilderAlarm \
+                      stepTic \
                       stepCheckDeliveryBuilding \
                       '
     sequence_list.addSequenceString(sequence_string)
@@ -1883,6 +1898,8 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                       stepTic \
                       stepCheckDeliveryBuilding \
                       stepConfirmOrder \
+                      stepTic \
+                      stepPackingListBuilderAlarm \
                       stepTic \
                       stepCheckDeliveryBuilding \
                       '
@@ -1911,6 +1928,8 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                       stepCheckDeliveryBuilding \
                       stepConfirmOrder \
                       stepTic \
+                      stepPackingListBuilderAlarm \
+                      stepTic \
                       stepCheckDeliveryBuilding \
                       '
     sequence_list.addSequenceString(sequence_string)
@@ -1936,6 +1955,8 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                       stepCheckDeliveryBuilding \
                       stepConfirmOrder \
                       stepTic \
+                      stepPackingListBuilderAlarm \
+                      stepTic \
                       stepCheckDeliveryBuilding \
                       '
     sequence_list.addSequenceString(sequence_string)
@@ -1959,6 +1980,8 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                       stepTic \
                       stepCheckDeliveryBuilding \
                       stepConfirmOrder \
+                      stepTic \
+                      stepPackingListBuilderAlarm \
                       stepTic \
                       stepCheckDeliveryBuilding \
                       '
@@ -1996,6 +2019,8 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                       stepOrderOrder \
                       stepCheckDeliveryBuilding \
                       stepConfirmOrder \
+                      stepTic \
+                      stepPackingListBuilderAlarm \
                       stepTic \
                       stepCheckDeliveryBuilding \
                       '
@@ -2043,7 +2068,7 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                       stepConfirmOrder \
                       stepTic \
                       stepCheckOrderSimulation \
-                      stepCheckOrderSimulationStable \
+                      stepCheckOrderConvergent \
                       '
     sequence_list.addSequenceString(sequence_string)
     # XXX XXX FIXME
@@ -2074,7 +2099,7 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                       stepTic \
                       stepCheckOrderSimulation \
                       stepCheckDeliveryBuilding \
-                      stepCheckOrderSimulationStable \
+                      stepCheckOrderConvergent \
                       '
 #     sequence_list.addSequenceString(sequence_string)
 
@@ -2254,7 +2279,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
         resource_value=resource,
         price=2,
         quantity=3)
-    transaction.commit()
     self.tic()
 
     self.assertEquals(order_line.isMovement(), True)
@@ -2282,7 +2306,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
         price=3, quantity=4,
         predicate_category_list=cell_key,
         variation_category_list=cell_key)
-    transaction.commit()
     self.tic()
 
     self.assertEquals(order_line.isMovement(), False)
@@ -2304,7 +2327,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
     # if cell has no price, the total price is None, but a default value can be
     # provided
     cell.setPrice(None)
-    transaction.commit()
     self.tic()
 
     self.assertEquals(order_line.isMovement(), False)
@@ -2325,7 +2347,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
 
     # restore the price on the line
     cell.setPrice(3)
-    transaction.commit()
     self.tic()
 
     # add sub_line to line, cell and line are not movements
@@ -2333,7 +2354,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
         portal_type=self.order_line_portal_type,
         price=4,
         quantity=5)
-    transaction.commit()
     self.tic()
 
     self.assertEquals(order_line.isMovement(), False)
@@ -2360,7 +2380,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
 
     # if this line has no price, getTotalPrice returns 0
     sub_order_line.setPrice(None)
-    transaction.commit()
     self.tic()
     self.assertEquals(order_line.isMovement(), False)
     self.assertEquals(cell.isMovement(), False)
@@ -2386,7 +2405,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
 
     # restore price on the sub line
     sub_order_line.setPrice(4)
-    transaction.commit()
     self.tic()
 
 
@@ -2401,7 +2419,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
         price=5, quantity=6,
         predicate_category_list=cell_key,
         variation_category_list=cell_key)
-    transaction.commit()
     self.tic()
 
     self.assertEquals(order_line.isMovement(), False)
@@ -2432,7 +2449,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
 
     # delete sub_line, cell is movement again
     order_line.manage_delObjects([sub_order_line.getId()])
-    transaction.commit()
     self.tic()
 
     self.assertEquals(order_line.isMovement(), False)
@@ -2454,7 +2470,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
     # delete cell, line is movement again
     order_line.manage_delObjects([cell.getId()])
     order_line.setVariationCategoryList([])
-    transaction.commit()
     self.tic()
 
     self.assertEquals(order_line.isMovement(), True)
@@ -2653,7 +2668,8 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                               portal_type='Payment Condition')))
 
     order.confirm()
-    transaction.commit()
+    self.tic()
+    self.stepPackingListBuilderAlarm()
     self.tic()
     related_packing_list = order.getCausalityRelatedValue(
                                    portal_type=self.packing_list_portal_type)
@@ -2686,7 +2702,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                             quantity=10,
                             price=3)
     order.confirm()
-    transaction.commit()
     self.tic()
 
     odt = order.Order_viewAsODT()
@@ -2723,7 +2738,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                             quantity=10,
                             price=3)
     order.confirm()
-    transaction.commit()
     self.tic()
 
     odt = order.Order_viewAsODT()
@@ -2762,7 +2776,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                             quantity=10,
                             price=3)
     order.confirm()
-    transaction.commit()
     self.tic()
 
     odt = order.Order_viewAsODT()
@@ -2804,7 +2817,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                             quantity=10,
                             price=3)
     order.confirm()
-    transaction.commit()
     self.tic()
 
     odt = order.Order_viewAsODT()
@@ -2856,7 +2868,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
     #                            price=.26)
 
     order.confirm()
-    transaction.commit()
     self.tic()
 
     odt = order.Order_viewAsODT()
@@ -2897,7 +2908,6 @@ class TestOrder(TestOrderMixin, ERP5TypeTestCase):
                             quantity=10,
                             price=3)
     order.confirm()
-    transaction.commit()
     self.tic()
 
     odt = order.Order_viewAsODT()

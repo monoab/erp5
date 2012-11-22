@@ -28,7 +28,6 @@
 
 import unittest
 
-import transaction
 from DateTime import DateTime
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from Products.ERP5Type.tests.utils import reindex
@@ -282,6 +281,8 @@ class TestItemMixin(TestSaleInvoiceMixin):
                        stepTic \
                        stepConfirmOrder \
                        stepTic \
+                       stepPackingListBuilderAlarm \
+                       stepTic \
                        stepCheckOrderRule \
                        stepCheckOrderLineAggregate \
                        stepCheckOrderSimulation \
@@ -301,6 +302,8 @@ class TestItemMixin(TestSaleInvoiceMixin):
                        stepTic \
                        stepConfirmOrder \
                        stepTic \
+                       stepPackingListBuilderAlarm \
+                       stepTic \
                        stepCheckOrderSimulation \
                        stepCheckDeliveryBuilding \
                        stepCheckPackingListIsNotDivergent \
@@ -317,7 +320,7 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
     return "Item"
 
   def beforeTearDown(self):
-    transaction.abort()
+    self.abort()
     for module in (self.portal.organisation_module,
                    self.portal.item_module,
                    self.portal.sale_packing_list_module,
@@ -325,7 +328,6 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
                    self.portal.product_module,
                    self.portal.portal_simulation,):
       module.manage_delObjects(list(module.objectIds()))
-    transaction.commit()
     self.tic()
 
 
@@ -346,6 +348,8 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
                        stepSetOrderLineDefaultValues \
                        stepOrderLineSetAggregationList \
                        stepConfirmOrder \
+                       stepTic \
+                       stepPackingListBuilderAlarm \
                        stepTic \
                        stepCheckOrderLineAggregate \
                        stepCheckOrderSimulation \
@@ -376,6 +380,8 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
                        stepOrderLineSetAggregationList \
                        stepConfirmOrder \
                        stepTic \
+                       stepPackingListBuilderAlarm \
+                       stepTic \
                        stepCheckOrderRule \
                        stepCheckOrderLineAggregate \
                        stepCheckOrderSimulation \
@@ -392,6 +398,8 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
                        stepStartPackingList \
                        stepCheckInvoicingRule \
                        stepTic \
+                       stepInvoiceBuilderAlarm \
+                       stepTic \
                        stepCheckInvoiceBuilding \
                        stepRebuildAndCheckNothingIsCreated \
                        stepCheckInvoicesConsistency \
@@ -404,17 +412,14 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
   
   def test_03_CreateItemsFromPackingListLine(self):
     organisation = self.createOrganisation(title='Organisation I')
-    transaction.commit()
     self.tic()
     resource = self.createVariatedResource()
     # XXX this tests depends on the relative url of the resource
     self.assertEquals('product_module/1', resource.getRelativeUrl())
-    transaction.commit()
     self.tic()
     packing_list = self.createPackingList(resource=resource,organisation=organisation)
     packing_list_line= self.createPackingListLine(packing_list=packing_list,
                                                   resource=resource)
-    transaction.commit()
     self.tic()
     
     # make sure we can render the dialog
@@ -442,7 +447,6 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
               )
 
     packing_list_line.DeliveryLine_createItemList(type='Item', listbox=listbox)
-    transaction.commit()
     self.tic()
     self.assertEquals(
            len([x.getObject() for x in self.portal.portal_catalog(
@@ -486,19 +490,16 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
      
   def test_04_CreateItemsFromPackingListLineWithVariationDefined(self):
     organisation = self.createOrganisation(title='Organisation II')
-    transaction.commit()
     self.tic()
     resource = self.createVariatedResource()
     # XXX this tests depends on the relative url of the resource
     self.assertEquals('product_module/2', resource.getRelativeUrl())
 
-    transaction.commit()
     self.tic()
     packing_list = self.createPackingList(resource=resource,organisation=organisation)
    
     packing_list_line= self.createPackingListLine(packing_list=packing_list,
                                                   resource=resource)
-    transaction.commit()
     self.tic()
     # create a listbox 
     listbox = ({ 'listbox_key': '000',
@@ -528,7 +529,6 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
               },
               )
     packing_list_line.DeliveryLine_createItemList(type='Item', listbox=listbox)
-    transaction.commit()
     self.tic()
 
     self.assertEquals(packing_list_line.getTotalQuantity(), 55.0)
@@ -559,10 +559,8 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
 
   def test_05_CreateItemsFromPackingListLineWithNotVariatedResource(self):
     organisation = self.createOrganisation(title='Organisation III')
-    transaction.commit()
     self.tic()
     resource = self.createNotVariatedResource()
-    transaction.commit()
     self.tic()
     packing_list = self.createPackingList(resource=resource,
                                           organisation=organisation)
@@ -570,7 +568,6 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
     packing_list_line= self.createPackingListLine(packing_list=packing_list,
                                                   resource=resource)
     packing_list_line.setQuantity(32)
-    transaction.commit()
     self.tic()
     # create a listbox 
     listbox = ({ 'listbox_key': '000',
@@ -590,7 +587,6 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
               },
               )
     packing_list_line.DeliveryLine_createItemList(type='Item', listbox=listbox)
-    transaction.commit()
     self.tic()
     self.assertEquals(
            len([x.getObject() for x in self.portal.portal_catalog(
@@ -618,19 +614,16 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
     """
     """
     organisation = self.createOrganisation(title='Organisation VI')
-    transaction.commit()
     self.tic()
     resource = self.createVariatedResource()
     # XXX this tests depends on the relative url of the resource
     self.assertEquals('product_module/4', resource.getRelativeUrl())
 
-    transaction.commit()
     self.tic()
     packing_list = self.createPackingList(resource=resource,organisation=organisation)
    
     packing_list_line= self.createPackingListLine(packing_list=packing_list,
                                                   resource=resource)
-    transaction.commit()
     self.tic()
     packing_list_line.DeliveryLine_viewItemCreationDialog()
     # create a listbox 
@@ -643,7 +636,6 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
               )
 
     packing_list_line.DeliveryLine_createItemList(type='Item', listbox=listbox)
-    transaction.commit()
     self.tic()
     item = [x.getObject() for x in self.portal.portal_catalog(
                                     portal_type='Item',
@@ -656,7 +648,6 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
                'confirm_action')
     self.assertEquals(packing_list.getSimulationState(),
               'confirmed')
-    transaction.commit()
     self.tic()
     self.assertEquals(packing_list.getCausalityState(),'solved')
 
@@ -817,6 +808,8 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
           stepStartPackingList \
           stepCheckInvoicingRule \
           stepTic \
+          stepInvoiceBuilderAlarm \
+          stepTic \
           stepCheckInvoiceBuilding \
           stepRebuildAndCheckNothingIsCreated \
           stepCheckInvoicesConsistency \
@@ -848,6 +841,8 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
                        stepOrderOrder \
                        stepTic \
                        stepConfirmOrder \
+                       stepTic \
+                       stepPackingListBuilderAlarm \
                        stepTic \
                        stepCheckOrderSimulation \
                        stepCheckDeliveryBuilding \
@@ -883,7 +878,6 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
     packing_list.confirm()
     packing_list.stop()
     self.assertEquals('stopped', packing_list.getSimulationState())
-    transaction.commit()
     self.tic()
     
 
@@ -945,7 +939,6 @@ class TestItem(TestItemMixin, ERP5TypeTestCase):
     packing_list.confirm()
     packing_list.stop()
     self.assertEquals('stopped', packing_list.getSimulationState())
-    transaction.commit()
     self.tic()
     
 
@@ -989,7 +982,8 @@ class TestItemScripts(ERP5TypeTestCase):
   """
   def getBusinessTemplateList(self):
     return ('erp5_base', 'erp5_pdm', 'erp5_simulation', 'erp5_trade',
-            'erp5_item', 'erp5_simulation_test')
+            'erp5_item', 'erp5_configurator_standard_solver',
+            'erp5_simulation_test')
 
   def afterSetUp(self):
     self.validateRules()
@@ -1027,11 +1021,10 @@ class TestItemScripts(ERP5TypeTestCase):
     self.item = self.portal.item_module.newContent(
                               portal_type='Item',
                               title='Item')
-    transaction.commit()
     self.tic()
   
   def beforeTearDown(self):
-    transaction.abort()
+    self.abort()
     for module in (self.portal.organisation_module,
                    self.portal.item_module,
                    self.portal.sale_packing_list_module,
@@ -1039,7 +1032,6 @@ class TestItemScripts(ERP5TypeTestCase):
                    self.portal.product_module,
                    self.portal.portal_simulation,):
       module.manage_delObjects(list(module.objectIds()))
-    transaction.commit()
     self.tic()
 
   @reindex

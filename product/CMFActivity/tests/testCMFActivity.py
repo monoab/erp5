@@ -35,6 +35,7 @@ from Testing import ZopeTestCase
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from Products.ERP5Type.tests.utils import DummyMailHost
 from Products.ERP5Type.TransactionalVariable import getTransactionalVariable
+from Products.ERP5Type.Base import Base
 from Products.CMFActivity.ActiveObject import INVOKE_ERROR_STATE,\
                                               VALIDATE_ERROR_STATE
 from Products.CMFActivity.Activity.Queue import VALIDATION_ERROR_DELAY
@@ -128,7 +129,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     organisation_module = self.getOrganisationModule()
     if not(organisation_module.hasContent(self.company_id)):
       o1 = organisation_module.newContent(id=self.company_id)
-    self.stepTic()
+    self.tic()
 
   def login(self, quiet=0, run=run_all_test):
     uf = self.getPortal().acl_users
@@ -147,23 +148,23 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     self.assertEquals(self.title1,organisation.getTitle())
     organisation.activate(activity=activity)._setTitle(self.title2)
     # Needed so that the message are commited into the queue
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),1)
     portal.portal_activities.manageCancel(organisation.getPhysicalPath(),'_setTitle')
     # Needed so that the message are removed from the queue
-    transaction.commit()
+    self.commit()
     self.assertEquals(self.title1,organisation.getTitle())
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),0)
     organisation.activate(activity=activity)._setTitle(self.title2)
     # Needed so that the message are commited into the queue
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),1)
     portal.portal_activities.manageInvoke(organisation.getPhysicalPath(),'_setTitle')
     # Needed so that the message are removed from the queue
-    transaction.commit()
+    self.commit()
     self.assertEquals(self.title2,organisation.getTitle())
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),0)
@@ -179,9 +180,8 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     self.assertEquals(self.title1,organisation.getTitle())
     organisation.activate(activity=activity)._setTitle(self.title2)
     # Needed so that the message are commited into the queue
-    transaction.commit()
+    self.commit()
     self.assertEquals(self.title1,organisation.getTitle())
-    portal.portal_activities.distribute()
     portal.portal_activities.tic()
     self.assertEquals(self.title2,organisation.getTitle())
     message_list = portal.portal_activities.getMessageList()
@@ -208,22 +208,21 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     self.assertEquals(0,organisation.getFoobar())
     organisation.activate(activity=activity).setFoobar()
     # Needed so that the message are commited into the queue
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),1)
-    portal.portal_activities.distribute()
     portal.portal_activities.tic()
     self.assertEquals(1,organisation.getFoobar())
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),0)
     organisation.activate(activity=activity).setFoobar()
     # Needed so that the message are commited into the queue
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),1)
     portal.portal_activities.manageInvoke(organisation.getPhysicalPath(),'setFoobar')
     # Needed so that the message are commited into the queue
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),0)
     self.assertEquals(2,organisation.getFoobar())
@@ -238,18 +237,18 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     organisation.activate(activity=activity)._setTitle(self.title2)
     organisation.flushActivity(invoke=1)
     self.assertEquals(organisation.getTitle(),self.title2)
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),0)
     self.assertEquals(organisation.getTitle(),self.title2)
     # Try again with different commit order
     organisation._setTitle(self.title1)
     organisation.activate(activity=activity)._setTitle(self.title2)
-    transaction.commit()
+    self.commit()
     organisation.flushActivity(invoke=1)
     self.assertEquals(len(message_list),0)
     self.assertEquals(organisation.getTitle(),self.title2)
-    transaction.commit()
+    self.commit()
 
   def TryActivateInsideFlush(self, activity):
     """
@@ -263,10 +262,9 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     organisation._setTitle(self.title1)
     organisation.activate(activity=activity).DeferredSetTitle(self.title2)
     organisation.flushActivity(invoke=1)
-    transaction.commit()
-    portal.portal_activities.distribute()
+    self.commit()
     portal.portal_activities.tic()
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),0)
     self.assertEquals(organisation.getTitle(),self.title2)
@@ -287,10 +285,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     organisation.setDescription(None)
     organisation.activate(activity=activity).DeferredSetTitle(self.title1)
     organisation.activate(activity=activity).DeferredSetDescription(self.title1)
-    transaction.commit()
+    self.commit()
     portal.portal_activities.distribute()
     portal.portal_activities.tic()
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),0)
     self.assertEquals(organisation.getTitle(),self.title1)
@@ -313,10 +311,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     organisation.activate(activity=activity).DeferredSetTitle(self.title1)
     organisation.activate(activity=activity).DeferredSetDescription(self.title1)
     organisation.flushActivity(invoke=1)
-    transaction.commit()
+    self.commit()
     portal.portal_activities.distribute()
     portal.portal_activities.tic()
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),0)
     self.assertEquals(organisation.getTitle(),self.title1)
@@ -343,13 +341,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     organisation.activate(activity=activity).DeferredSetTitle(self.title1,commit_sub=commit_sub)
     organisation.flushActivity(invoke=1)
     organisation.activate(activity=activity).DeferredSetDescription(self.title1,commit_sub=commit_sub)
-    transaction.commit()
+    self.commit()
     portal.portal_activities.distribute()
     portal.portal_activities.tic()
-    transaction.commit()
-    portal.portal_activities.distribute()
-    portal.portal_activities.tic()
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),0)
     self.assertEquals(organisation.getTitle(),self.title1)
@@ -361,16 +356,15 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     """
     portal = self.getPortal()
     def crashThisActivity(self):
-      self.IWillCrach()
+      self.IWillCrash()
     organisation =  portal.organisation._getOb(self.company_id)
     Organisation.crashThisActivity = crashThisActivity
     organisation.activate(activity=activity).crashThisActivity()
     # Needed so that the message are commited into the queue
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     LOG('Before MessageWithErrorOnActivityFails, message_list',0,[x.__dict__ for x in message_list])
     self.assertEquals(len(message_list),1)
-    portal.portal_activities.distribute()
     portal.portal_activities.tic()
     # XXX HERE WE SHOULD USE TIME SHIFT IN ORDER TO SIMULATE MULTIPLE TICS
     # Test if there is still the message after it crashed
@@ -378,7 +372,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     self.assertEquals(len(message_list),1)
     portal.portal_activities.manageCancel(organisation.getPhysicalPath(),'crashThisActivity')
     # Needed so that the message are commited into the queue
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),0)
 
@@ -393,10 +387,9 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     self.assertEquals(self.title1,organisation.getTitle())
     organisation.activate(activity=activity)._setTitle(self.title2)
     # Needed so that the message are commited into the queue
-    transaction.commit()
+    self.commit()
     self.assertEquals(self.title1,organisation.getTitle())
     self.assertRaises(ActivityPendingError,organisation.edit,id=self.company_id2)
-    portal.portal_activities.distribute()
     portal.portal_activities.tic()
 
   def TryActiveProcess(self, activity):
@@ -410,9 +403,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     self.assertEquals(self.title1,organisation.getTitle())
     organisation.activate(activity=activity,active_process=active_process).getTitle()
     # Needed so that the message are commited into the queue
-    transaction.commit()
-    portal.portal_activities.distribute()
-    portal.portal_activities.tic()
+    self.commit()
     portal.portal_activities.distribute()
     portal.portal_activities.tic()
     self.assertEquals(self.title1,organisation.getTitle())
@@ -434,7 +425,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
 
     o.setTitle('a')
     self.assertEquals(o.getTitle(), 'a')
-    transaction.commit()
     self.tic()
 
     def toto(self, value):
@@ -447,7 +437,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
 
     o.activate(after_method_id = 'titi', activity = activity).toto('b')
     o.activate(activity = activity).titi('c')
-    transaction.commit()
     self.tic()
     self.assertEquals(o.getTitle(), 'acb')
 
@@ -471,10 +460,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     o1.recursiveReindexObject()
     o2.recursiveReindexObject()
     o1._delOb('2')
-    transaction.commit()
+    self.commit()
     portal.portal_activities.distribute()
     portal.portal_activities.tic()
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),1)
 
@@ -498,10 +487,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     o1.recursiveReindexObject()
     o2.recursiveReindexObject()
     organisation_module._delOb(self.company_id2)
-    transaction.commit()
+    self.commit()
     portal.portal_activities.distribute()
     portal.portal_activities.tic()
-    transaction.commit()
+    self.commit()
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),1)
 
@@ -517,22 +506,19 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
 
     o.setTitle('?')
     self.assertEquals(o.getTitle(), '?')
-    transaction.commit()
     self.tic()
 
     o.activate(after_tag = 'toto', activity = activity).setTitle('b')
     o.activate(tag = 'toto', activity = activity).setTitle('a')
-    transaction.commit()
     self.tic()
     self.assertEquals(o.getTitle(), 'b')
 
-    o.setDefaultActivateParameters(tag = 'toto')
+    o.setDefaultActivateParameterDict({'tag': 'toto'})
     def titi(self):
       self.setCorporateName(self.getTitle() + 'd')
     o.__class__.titi = titi
     o.activate(after_tag_and_method_id=('toto', 'setTitle'), activity = activity).titi()
     o.activate(activity = activity).setTitle('c')
-    transaction.commit()
     self.tic()
     self.assertEquals(o.getCorporateName(), 'cd')
 
@@ -550,16 +536,15 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     o.setDescription('?')
     self.assertEquals(o.getTitle(), '?')
     self.assertEquals(o.getDescription(), '?')
-    transaction.commit()
     self.tic()
 
     o.activate(after_tag = 'toto', activity = activity).setDescription('b')
     o.activate(tag = 'toto', activity = activity).setTitle('a')
-    transaction.commit()
+    self.commit()
     tool = self.getActivityTool()
     self.assertRaises(ActivityFlushError,tool.manageInvoke,o.getPath(),'setDescription')
     tool.manageInvoke(o.getPath(),'setTitle')
-    transaction.commit()
+    self.commit()
     self.assertEquals(o.getTitle(), 'a')
     self.assertEquals(o.getDescription(), '?')
     self.tic()
@@ -579,7 +564,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
 
     o.setTitle('?')
     self.assertEquals(o.getTitle(), '?')
-    transaction.commit()
     self.tic()
 
     def toto(self, s):
@@ -587,11 +571,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     o.__class__.toto = toto
 
     o.activate(tag = 'toto', activity = activity).toto('a')
-    transaction.commit()
+    self.commit()
     o.activate(after_tag = 'titi', activity = activity).toto('b')
-    transaction.commit()
+    self.commit()
     o.activate(tag = 'titi', after_tag = 'toto', activity = activity).setTitle('c')
-    transaction.commit()
     self.tic()
     self.assertEquals(o.getTitle(), 'cb')
 
@@ -607,7 +590,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     o = portal.organisation._getOb(self.company_id)
 
     o.setTitle('')
-    transaction.commit()
     self.tic()
 
     def toto(self, s):
@@ -615,11 +597,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     o.__class__.toto = toto
 
     o.activate(tag='A', activity=activity).toto('a')
-    transaction.commit()
+    self.commit()
     o.activate(tag='B', activity=activity).toto('b')
-    transaction.commit()
+    self.commit()
     o.activate(after_tag=('A', 'B'), activity=activity).setTitle('last')
-    transaction.commit()
     self.tic()
     self.assertEquals(o.getTitle(), 'last')
 
@@ -631,7 +612,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     organisation_module = self.getOrganisationModule()
     if not organisation_module.hasContent(self.company_id):
       organisation_module.newContent(id=self.company_id)
-    transaction.commit()
     self.tic()
 
     def check(o):
@@ -644,14 +624,13 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     o = portal.organisation._getOb(self.company_id)
     for i in range(activity_count):
       o.activate(activity=activity)._setTitle('foo')
-    transaction.commit()
+    self.commit()
     check(o)
 
     portal.portal_activities.manageClearActivities()
-    transaction.commit()
+    self.commit()
     check(o)
 
-    transaction.commit()
     self.tic()
 
     self.assertEquals(o.getTitle(), 'foo')
@@ -667,11 +646,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       organisation_module.newContent(id=self.company_id)
     o = portal.organisation._getOb(self.company_id)
     o.setTitle('?')
-    transaction.commit()
     self.tic()
 
     o.activate(tag = 'toto', activity = activity).setTitle('a')
-    transaction.commit()
+    self.commit()
     self.assertEquals(o.getTitle(), '?')
     self.assertEquals(portal_activities.countMessageWithTag('toto'), 1)
     self.tic()
@@ -690,7 +668,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     if not organisation_module.hasContent(self.company_id):
       organisation_module.newContent(id=self.company_id)
     o = organisation_module._getOb(self.company_id)
-    transaction.commit()
+    self.commit()
     self.flushAllActivities(silent = 1, loop_size = 10)
     self.assertEquals(len(activity_tool.getMessageList()), 0)
 
@@ -712,7 +690,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
         Queue.current_num_conflict_errors = 0
         Queue.conflict_errors_limit = i
         o.activate(activity = activity).getId()
-        transaction.commit()
+        self.commit()
         self.flushAllActivities(silent = 1, loop_size = i + 10)
         self.assertEquals(len(activity_tool.getMessageList()), 0)
     finally:
@@ -733,7 +711,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     if not organisation_module.hasContent(self.company_id):
       organisation_module.newContent(id=self.company_id)
     o = organisation_module._getOb(self.company_id)
-    transaction.commit()
+    self.commit()
     self.flushAllActivities(silent = 1, loop_size = 10)
     self.assertEquals(len(activity_tool.getMessageList()), 0)
 
@@ -752,13 +730,13 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     try:
       # Test some range of conflict error occurences.
       organisation_module.recursiveReindexObject()
-      transaction.commit()
+      self.commit()
       self.assertEquals(len(activity_tool.getMessageList()), 1)
       DB.original_query = DB.query
       DB.query = query
       portal.portal_activities.distribute()
       portal.portal_activities.tic()
-      transaction.commit()
+      self.commit()
       DB.query = DB.original_query
       message_list = portal.portal_activities.getMessageList()
       self.assertEquals(len(message_list),1)
@@ -773,50 +751,50 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       object_a.newContent(id=self.company_id)
     object_b = object_a._getOb(self.company_id)
     activity_tool.manageClearActivities(keep=0)
-    transaction.commit()
+    self.commit()
     # First case: creating the same activity twice must only register one.
     self.assertEquals(len(activity_tool.getMessageList()), 0) # Sanity check
     object_a.activate(activity=activity).getId()
     object_a.activate(activity=activity).getId()
-    transaction.commit()
+    self.commit()
     self.assertEquals(len(activity_tool.getMessageList()), 1)
     activity_tool.manageClearActivities(keep=0)
-    transaction.commit()
+    self.commit()
     # Second case: creating activity with same tag must only register one.
     # This behaviour is actually the same as the no-tag behaviour.
     self.assertEquals(len(activity_tool.getMessageList()), 0) # Sanity check
     object_a.activate(activity=activity, tag='foo').getId()
     object_a.activate(activity=activity, tag='foo').getId()
-    transaction.commit()
+    self.commit()
     self.assertEquals(len(activity_tool.getMessageList()), 1)
     activity_tool.manageClearActivities(keep=0)
-    transaction.commit()
+    self.commit()
     # Third case: creating activities with different tags must register both.
     self.assertEquals(len(activity_tool.getMessageList()), 0) # Sanity check
     object_a.activate(activity=activity, tag='foo').getId()
     object_a.activate(activity=activity, tag='bar').getId()
-    transaction.commit()
+    self.commit()
     self.assertEquals(len(activity_tool.getMessageList()), 2)
     activity_tool.manageClearActivities(keep=0)
-    transaction.commit()
+    self.commit()
     # Fourth case: creating activities on different objects must register
     # both.
     self.assertEquals(len(activity_tool.getMessageList()), 0) # Sanity check
     object_a.activate(activity=activity).getId()
     object_b.activate(activity=activity).getId()
-    transaction.commit()
+    self.commit()
     self.assertEquals(len(activity_tool.getMessageList()), 2)
     activity_tool.manageClearActivities(keep=0)
-    transaction.commit()
+    self.commit()
     # Fifth case: creating activities with different method must register
     # both.
     self.assertEquals(len(activity_tool.getMessageList()), 0) # Sanity check
     object_a.activate(activity=activity).getId()
     object_a.activate(activity=activity).getTitle()
-    transaction.commit()
+    self.commit()
     self.assertEquals(len(activity_tool.getMessageList()), 2)
     activity_tool.manageClearActivities(keep=0)
-    transaction.commit()
+    self.commit()
 
   def test_01_DeferredSetTitleSQLDict(self, quiet=0, run=run_all_test):
     # Test if we can add a complete sales order
@@ -836,24 +814,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       LOG('Testing... ',0,message)
     self.DeferredSetTitleActivity('SQLQueue')
 
-  def test_03_DeferredSetTitleRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we can add a complete sales order
-    if not run: return
-    if not quiet:
-      message = '\nTest Deferred Set Title RAMDict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.DeferredSetTitleActivity('RAMDict')
-
-  def test_04_DeferredSetTitleRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we can add a complete sales order
-    if not run: return
-    if not quiet:
-      message = '\nTest Deferred Set Title RAMQueue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.DeferredSetTitleActivity('RAMQueue')
-
   def test_05_InvokeAndCancelSQLDict(self, quiet=0, run=run_all_test):
     # Test if we can add a complete sales order
     if not run: return
@@ -871,24 +831,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
     self.InvokeAndCancelActivity('SQLQueue')
-
-  def test_07_InvokeAndCancelRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we can add a complete sales order
-    if not run: return
-    if not quiet:
-      message = '\nTest Invoke And Cancel RAMDict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.InvokeAndCancelActivity('RAMDict')
-
-  def test_08_InvokeAndCancelRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we can add a complete sales order
-    if not run: return
-    if not quiet:
-      message = '\nTest Invoke And Cancel RAMQueue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.InvokeAndCancelActivity('RAMQueue')
 
   def test_09_CallOnceWithSQLDict(self, quiet=0, run=run_all_test):
     # Test if we call methods only once
@@ -908,24 +850,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       LOG('Testing... ',0,message)
     self.CallOnceWithActivity('SQLQueue')
 
-  def test_11_CallOnceWithRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nCall Once With RAM Dict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.CallOnceWithActivity('RAMDict')
-
-  def test_12_CallOnceWithRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nCall Once With RAM Queue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.CallOnceWithActivity('RAMQueue')
-
   def test_13_TryMessageWithErrorOnSQLDict(self, quiet=0, run=run_all_test):
     # Test if we call methods only once
     if not run: return
@@ -943,24 +867,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
     self.TryMessageWithErrorOnActivity('SQLQueue')
-
-  def test_15_TryMessageWithErrorOnRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Message With Error On RAM Dict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryMessageWithErrorOnActivity('RAMDict')
-
-  def test_16_TryMessageWithErrorOnRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Message With Error On RAM Queue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryMessageWithErrorOnActivity('RAMQueue')
 
   def test_17_TryFlushActivityWithSQLDict(self, quiet=0, run=run_all_test):
     # Test if we call methods only once
@@ -980,24 +886,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       LOG('Testing... ',0,message)
     self.TryFlushActivity('SQLQueue')
 
-  def test_19_TryFlushActivityWithRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Flush Activity With RAM Dict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryFlushActivity('RAMDict')
-
-  def test_20_TryFlushActivityWithRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Flush Activity With RAM Queue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryFlushActivity('RAMQueue')
-
   def test_21_TryActivateInsideFlushWithSQLDict(self, quiet=0, run=run_all_test):
     # Test if we call methods only once
     if not run: return
@@ -1015,24 +903,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
     self.TryActivateInsideFlush('SQLQueue')
-
-  def test_23_TryActivateInsideFlushWithRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Activate Inside Flush With RAM Dict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryActivateInsideFlush('RAMDict')
-
-  def test_24_TryActivateInsideFlushWithRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Activate Inside Flush With RAM Queue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryActivateInsideFlush('RAMQueue')
 
   def test_25_TryTwoMethodsWithSQLDict(self, quiet=0, run=run_all_test):
     # Test if we call methods only once
@@ -1052,24 +922,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       LOG('Testing... ',0,message)
     self.TryTwoMethods('SQLQueue')
 
-  def test_27_TryTwoMethodsWithRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Two Methods With RAM Dict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryTwoMethods('RAMDict')
-
-  def test_28_TryTwoMethodsWithRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Two Methods With RAM Queue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryTwoMethods('RAMQueue')
-
   def test_29_TryTwoMethodsAndFlushThemWithSQLDict(self, quiet=0, run=run_all_test):
     # Test if we call methods only once
     if not run: return
@@ -1088,24 +940,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       LOG('Testing... ',0,message)
     self.TryTwoMethodsAndFlushThem('SQLQueue')
 
-  def test_31_TryTwoMethodsAndFlushThemWithRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Two Methods And Flush Them With RAM Dict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryTwoMethodsAndFlushThem('RAMDict')
-
-  def test_32_TryTwoMethodsAndFlushThemWithRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Two Methods And Flush Them With RAM Queue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryTwoMethodsAndFlushThem('RAMQueue')
-
   def test_33_TryActivateFlushActivateTicWithSQLDict(self, quiet=0, run=run_all_test):
     # Test if we call methods only once
     if not run: return
@@ -1123,24 +957,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
     self.TryActivateFlushActivateTic('SQLQueue')
-
-  def test_35_TryActivateFlushActivateTicWithRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Activate Flush Activate Tic With RAM Dict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryActivateFlushActivateTic('RAMDict')
-
-  def test_36_TryActivateFlushActivateTicWithRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Activate Flush Activate Tic With RAM Queue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryActivateFlushActivateTic('RAMQueue')
 
   def test_37_TryActivateFlushActivateTicWithMultipleActivities(self, quiet=0, run=run_all_test):
     # Test if we call methods only once
@@ -1170,24 +986,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       LOG('Testing... ',0,message)
     self.TryActivateFlushActivateTic('SQLQueue',commit_sub=1)
 
-  def test_40_TryCommitSubTransactionWithRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Commit Sub Transaction With RAM Dict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryActivateFlushActivateTic('RAMDict',commit_sub=1)
-
-  def test_41_TryCommitSubTransactionWithRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Commit Sub Transaction With RAM Queue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryActivateFlushActivateTic('RAMQueue',commit_sub=1)
-
   def test_42_TryRenameObjectWithSQLDict(self, quiet=0, run=run_all_test):
     # Test if we call methods only once
     if not run: return
@@ -1206,24 +1004,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       LOG('Testing... ',0,message)
     self.DeferredSetTitleWithRenamedObject('SQLQueue')
 
-  def test_44_TryRenameObjectWithRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Rename Object With RAM Dict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.DeferredSetTitleWithRenamedObject('RAMDict')
-
-  def test_45_TryRenameObjectWithRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Rename Object With RAM Queue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.DeferredSetTitleWithRenamedObject('RAMQueue')
-
   def test_46_TryActiveProcessWithSQLDict(self, quiet=0, run=run_all_test):
     # Test if we call methods only once
     if not run: return
@@ -1241,24 +1021,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
     self.TryActiveProcess('SQLQueue')
-
-  def test_48_TryActiveProcessWithRAMDict(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Active Process With RAM Dict '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryActiveProcess('RAMDict')
-
-  def test_49_TryActiveProcessWithRAMQueue(self, quiet=0, run=run_all_test):
-    # Test if we call methods only once
-    if not run: return
-    if not quiet:
-      message = '\nTry Active Process With RAM Queue '
-      ZopeTestCase._print(message)
-      LOG('Testing... ',0,message)
-    self.TryActiveProcess('RAMQueue')
 
   def test_54_TryAfterMethodIdWithSQLDict(self, quiet=0, run=run_all_test):
     # Test if after_method_id can be used
@@ -1299,7 +1061,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # Then execute activities as seb
     user = uf.getUserById('seb').__of__(uf)
     newSecurityManager(None, user)
-    transaction.commit()
+    self.commit()
     portal.portal_activities.distribute()
     portal.portal_activities.tic()
     email = organisation.get('email')
@@ -1420,7 +1182,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
           finished = 0
 
       activity_tool.timeShift(3 * VALIDATION_ERROR_DELAY)
-      transaction.commit()
+      self.commit()
       if finished:
         return
 
@@ -1464,12 +1226,12 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       # reset
       activity_tool.manageClearActivities(keep=0)
       obj.setTitle(original_title)
-      transaction.commit()
+      self.commit()
 
       # activate failing message and flush
       for fail_activity in activity_list:
         obj.activate(activity = fail_activity).failingMethod()
-      transaction.commit()
+      self.commit()
       self.flushAllActivities(silent=1, loop_size=100)
       full_message_list = activity_tool.getMessageList()
       remaining_messages = [a for a in full_message_list if a.method_id !=
@@ -1483,7 +1245,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       new_title = 'nothing'
       obj.activate(after_method_id = ['failingMethod'],
                    activity = activity ).setTitle(new_title)
-      transaction.commit()
+      self.commit()
       self.flushAllActivities(silent=1, loop_size=100)
       full_message_list = activity_tool.getMessageList()
       remaining_messages = [a for a in full_message_list if a.method_id !=
@@ -1543,13 +1305,13 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     Message.notifyUser = notifyUserSilent
 
     # First, index the object.
-    transaction.commit()
+    self.commit()
     self.flushAllActivities(silent=1, loop_size=100)
     self.assertEquals(len(activity_tool.getMessageList()), 0)
 
     # Insert a failing active object.
     obj.activate().failingMethod()
-    transaction.commit()
+    self.commit()
     self.assertEquals(len(activity_tool.getMessageList()), 1)
 
     # Just wait for the active object to be abandoned.
@@ -1566,7 +1328,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # Cancel it via the management interface.
     message = activity_tool.getMessageList()[0]
     activity_tool.manageCancel(message.object_path, message.method_id)
-    transaction.commit()
+    self.commit()
     self.assertEquals(len(activity_tool.getMessageList()), 0)
 
   def test_68_RetryMessageExecution(self, quiet=0):
@@ -1593,7 +1355,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
         exec_count[0] = 0
         activity_tool.activate(activity=activity, priority=priority(1,6),
                                **activate_kw).doSomething(retry_list)
-        transaction.commit()
+        self.commit()
         self.flushAllActivities(silent=1)
         self.assertEqual(len(retry_list), exec_count[0])
         self.assertEqual(fail, len(activity_tool.getMessageList()))
@@ -1699,7 +1461,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
 
     o1 = self.getOrganisationModule().newContent(
                                   activate_kw=dict(tag='The Tag'))
-    transaction.commit()
+    self.commit()
     messages_for_o1 = [m for m in self.getActivityTool().getMessageList()
                        if m.object_path == o1.getPhysicalPath()]
     self.assertNotEquals(0, len(messages_for_o1))
@@ -1715,7 +1477,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       LOG('Testing... ',0,message)
     orga_module = self.getOrganisationModule()
     p = orga_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     self.assertEqual(p.getDescription(), "")
     activity_tool = self.getPortal().portal_activities
@@ -1729,7 +1490,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # First check dequeue read same message only once
     for i in xrange(10):
       p.activate(activity="SQLDict").updateDesc()
-      transaction.commit()
+      self.commit()
 
     self.assertEqual(len(activity_tool.getMessageList()), 10)
     self.tic()
@@ -1738,11 +1499,11 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # Check if there is pending activity after deleting an object
     for i in xrange(10):
       p.activate(activity="SQLDict").updateDesc()
-      transaction.commit()
+      self.commit()
 
     self.assertEqual(len(activity_tool.getMessageList()), 10)
     activity_tool.flush(p, invoke=0)
-    transaction.commit()
+    self.commit()
     self.assertEqual(len(activity_tool.getMessageList()), 0)
 
   def test_78_IsMessageRegisteredSQLDict(self, quiet=0, run=run_all_test):
@@ -1772,7 +1533,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     module = self.getOrganisationModule()
     organisation = module.newContent(portal_type = 'Organisation')
     organisation_id = organisation.getId()
-    transaction.commit()
+    self.commit()
     organisation = module[organisation_id]
 
     # Now fake a read conflict.
@@ -1796,7 +1557,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # In Zope 2.7, abort does not sync automatically, so even after abort,
     # ReadConflictError would be raised. But in Zope 2.8, this is automatic.
 
-    transaction.abort()
+    self.abort()
     getattr(organisation, 'uid')
 
 
@@ -1828,11 +1589,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # Test group_method_id is working without group_id
     for x in xrange(5):
       organisation.activate(activity=activity, group_method_id="organisation_module/setFoobar").reindexObject(number=1)
-      transaction.commit()      
+      self.commit()
 
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),5)
-    portal.portal_activities.distribute()
     portal.portal_activities.tic()
     expected = dict(SQLDict=1, SQLQueue=5)[activity]
     self.assertEquals(expected, organisation.getFoobar())
@@ -1841,11 +1601,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # Test group_method_id is working with one group_id defined
     for x in xrange(5):
       organisation.activate(activity=activity, group_method_id="organisation_module/setFoobar", group_id="1").reindexObject(number=1)
-      transaction.commit()      
+      self.commit()
 
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),5)
-    portal.portal_activities.distribute()
     portal.portal_activities.tic()
     self.assertEquals(expected * 2, organisation.getFoobar())
 
@@ -1855,17 +1614,16 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # Test group_method_id is working with many group_id defined
     for x in xrange(5):
       organisation.activate(activity=activity, group_method_id="organisation_module/setFoobar", group_id="1").reindexObject(number=1)
-      transaction.commit()      
+      self.commit()
       organisation.activate(activity=activity, group_method_id="organisation_module/setFoobar", group_id="2").reindexObject(number=3)
-      transaction.commit()
+      self.commit()
       organisation.activate(activity=activity, group_method_id="organisation_module/setFoobar", group_id="1").reindexObject(number=1)
-      transaction.commit()
+      self.commit()
       organisation.activate(activity=activity, group_method_id="organisation_module/setFoobar", group_id="3").reindexObject(number=5)
-      transaction.commit()
+      self.commit()
 
     message_list = portal.portal_activities.getMessageList()
     self.assertEquals(len(message_list),20)
-    portal.portal_activities.distribute()
     portal.portal_activities.tic()
     self.assertEquals(dict(SQLDict=11, SQLQueue=60)[activity],
                       organisation.getFoobar())
@@ -1897,10 +1655,9 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
     o1 = self.getOrganisationModule().newContent()
-    transaction.commit()
     self.tic()
     o1.validate(activate_kw=dict(tag='The Tag'))
-    transaction.commit()
+    self.commit()
     messages_for_o1 = [m for m in self.getActivityTool().getMessageList()
                        if m.object_path == o1.getPhysicalPath()]
     self.assertNotEquals(0, len(messages_for_o1))
@@ -1916,7 +1673,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       message = '\nCheck loss of volatile attribute doesn\'t cause message to be lost'
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     message_list = activity_tool.getMessageList()
@@ -1934,7 +1690,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     delete_volatiles()
     # Another activity to check that first one did not get lost even if volatile disapears
     active_organisation_module.getId()
-    transaction.commit()
+    self.commit()
     message_list = activity_tool.getMessageList()
     self.assertEquals(len(message_list), 2)
 
@@ -1948,7 +1704,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       message = '\nCheck activity modifications via CMFActivity connection are rolled back on error (SQLDict)'
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     def modifySQLAndFail(self, object_list):
@@ -1987,7 +1742,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       obj.activate(activity='SQLDict', group_method_id=group_method_id).dummy()
       obj2 = self.getPortal().organisation_module.newContent(portal_type='Organisation')
       obj2.activate(activity='SQLDict', group_method_id=group_method_id).dummy()
-      transaction.commit()
+      self.commit()
       self.flushAllActivities(silent=1, loop_size=100)
       self.assertEquals(activity_tool.countMessage(method_id='dummy_activity'), 0)
     finally:
@@ -2004,7 +1759,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       message = '\nCheck activity modifications via CMFActivity connection are rolled back on error (SQLQueue)'
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     def modifySQLAndFail(self):
@@ -2036,7 +1790,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       Organisation.modifySQLAndFail = modifySQLAndFail
       obj = self.getPortal().organisation_module.newContent(portal_type='Organisation')
       obj.activate(activity='SQLQueue').modifySQLAndFail()
-      transaction.commit()
+      self.commit()
       self.flushAllActivities(silent=1, loop_size=100)
       self.assertEquals(activity_tool.countMessage(method_id='dummy_activity'), 0)
     finally:
@@ -2071,7 +1825,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       message = '\nCheck that activity modifications via CMFActivity connection are rolled back on ActivityTool error (SQLDict)'
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     def modifySQLAndFail(self, *arg, **kw):
@@ -2112,7 +1865,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       obj.activate(activity='SQLDict', group_method_id=group_method_id).dummy()
       obj2 = self.getPortal().organisation_module.newContent(portal_type='Organisation')
       obj2.activate(activity='SQLDict', group_method_id=group_method_id).dummy()
-      transaction.commit()
+      self.commit()
       self.flushAllActivities(silent=1, loop_size=100)
       self.assertEquals(activity_tool.countMessage(method_id='dummy_activity'), 0)
     finally:
@@ -2129,7 +1882,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       message = '\nCheck that activity modifications via CMFActivity connection are rolled back on ActivityTool error (SQLQueue)'
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     def modifySQLAndFail(self, *args, **kw):
@@ -2167,7 +1919,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       Organisation.dummy = dummy
       obj = self.getPortal().organisation_module.newContent(portal_type='Organisation')
       obj.activate(activity='SQLQueue').dummy()
-      transaction.commit()
+      self.commit()
       self.flushAllActivities(silent=1, loop_size=100)
       self.assertEquals(activity_tool.countMessage(method_id='dummy_activity'), 0)
     finally:
@@ -2189,7 +1941,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       message = '\nCheck processing a batch of messages with failures'
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     obj = self.getPortal().organisation_module.newContent(portal_type='Organisation')
@@ -2205,7 +1956,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       active_obj.appendToTitle('c', fail=True)
       active_obj.appendToTitle('d')
       object_id = obj.getId()
-      transaction.commit()
+      self.commit()
       self.assertEqual(obj.getTitle(), 'a')
       self.assertEqual(activity_tool.countMessage(method_id='appendToTitle'), 3)
       self.flushAllActivities(silent=1, loop_size=100)
@@ -2226,7 +1977,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       message = '\nCheck request isolation between messages of the same batch'
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
-    transaction.commit()
     self.tic()
     obj = self.getPortal().organisation_module.newContent(portal_type='Organisation', title='Pending')
     marker_id = 'marker_%i' % (random.randint(1, 10), )
@@ -2243,7 +1993,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       obj.activate(activity='SQLQueue', tag='set_first').putMarkerValue(marker_id=marker_id)
       obj.activate(activity='SQLQueue', after_tag='set_first').checkMarkerValue(marker_id=marker_id)
       self.assertEqual(obj.getTitle(), 'Pending')
-      transaction.commit()
       self.tic()
       self.assertEqual(obj.getTitle(), 'Success')
     finally:
@@ -2251,10 +2000,8 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       delattr(Organisation, 'checkMarkerValue')
 
   def TryUserNotificationOnActivityFailure(self, activity):
-    transaction.commit()
     self.tic()
     obj = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     # Use a mutable variable to be able to modify the same instance from
     # monkeypatch method.
@@ -2270,14 +2017,14 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     try:
       # MESSAGE_NOT_EXECUTED
       obj.activate(activity=activity).failingMethod()
-      transaction.commit()
+      self.commit()
       self.assertEqual(len(notification_done), 0)
       self.flushAllActivities(silent=1, loop_size=100)
       self.assertEqual(len(notification_done), 1)
       # MESSAGE_NOT_EXECUTABLE
       obj.getParentValue()._delObject(obj.getId())
       obj.activate(activity=activity).getId()
-      transaction.commit()
+      self.commit()
       self.assertEqual(len(notification_done), 1)
       self.flushAllActivities(silent=1, loop_size=100)
       self.assertEqual(len(notification_done), 2)
@@ -2311,10 +2058,8 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     self.TryUserNotificationOnActivityFailure('SQLQueue')
 
   def TryUserNotificationRaise(self, activity):
-    transaction.commit()
     self.tic()
     obj = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     from Products.CMFActivity.ActivityTool import Message
     original_notifyUser = Message.notifyUser
@@ -2325,7 +2070,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     readMessageList = getattr(self.getPortalObject(), '%s_readMessageList'% (activity, ))
     try:
       obj.activate(activity=activity, priority=6).failingMethod()
-      transaction.commit()
+      self.commit()
       self.flushAllActivities(silent=1, loop_size=100)
       with_processing_len = len(readMessageList(path=None,
                                                 to_date=None,
@@ -2374,7 +2119,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       message = '\nCheck that activity modifications via CMFActivity connection are rolled back on commit error (SQLDict)'
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     def modifySQL(self, object_list):
@@ -2409,11 +2153,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       obj = self.getPortal().organisation_module.newContent(portal_type='Organisation')
       group_method_id = '%s/modifySQL' % (obj.getPath(), )
       obj2 = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-      transaction.commit()
       self.tic()
       obj.activate(activity='SQLDict', group_method_id=group_method_id).modifySQL()
       obj2.activate(activity='SQLDict', group_method_id=group_method_id).modifySQL()
-      transaction.commit()
+      self.commit()
       try:
         self.flushAllActivities(silent=1, loop_size=100)
       finally:
@@ -2431,7 +2174,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       message = '\nCheck that activity modifications via CMFActivity connection are rolled back on commit error (SQLQueue)'
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     def modifySQL(self, *args, **kw):
@@ -2464,10 +2206,9 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     try:
       Organisation.modifySQL = modifySQL
       obj = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-      transaction.commit()
       self.tic()
       obj.activate(activity='SQLQueue').modifySQL()
-      transaction.commit()
+      self.commit()
       try:
         self.flushAllActivities(silent=1, loop_size=100)
       finally:
@@ -2482,20 +2223,18 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       error be raised in tpc_vote) does not cause activity connection to
       stall.
     """
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     from Shared.DC.ZRDB.TM import TM
     try:
       Organisation.registerFailingTransactionManager = registerFailingTransactionManager
       obj = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-      transaction.commit()
       self.tic()
       now = DateTime()
       obj.activate(activity=activity).registerFailingTransactionManager()
-      transaction.commit()
+      self.commit()
       self.flushAllActivities(silent=1, loop_size=100)
-      transaction.commit()
+      self.commit()
       # Check that cmf_activity SQL connection still works
       connection_da_pool = self.getPortalObject().cmf_activity_sql_connection()
       import thread
@@ -2503,7 +2242,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       self.assertFalse(connection_da._registered)
       connection_da_pool.query('select 1')
       self.assertTrue(connection_da._registered)
-      transaction.commit()
+      self.commit()
       self.assertFalse(connection_da._registered)
     finally:
       delattr(Organisation, 'registerFailingTransactionManager')
@@ -2527,19 +2266,17 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
   def TryActivityRaiseInCommitDoesNotLooseMessages(self, activity):
     """
     """
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     try:
       Organisation.registerFailingTransactionManager = registerFailingTransactionManager
       obj = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-      transaction.commit()
       self.tic()
       now = DateTime()
       obj.activate(activity=activity).registerFailingTransactionManager()
-      transaction.commit()
+      self.commit()
       self.flushAllActivities(silent=1, loop_size=100)
-      transaction.commit()
+      self.commit()
       self.assertEquals(activity_tool.countMessage(method_id='registerFailingTransactionManager'), 1)
     finally:
       delattr(Organisation, 'registerFailingTransactionManager')
@@ -2561,7 +2298,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     self.TryActivityRaiseInCommitDoesNotLooseMessages('SQLQueue')
 
   def TryChangeSkinInActivity(self, activity):
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     def changeSkinToNone(self):
@@ -2569,10 +2305,9 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     Organisation.changeSkinToNone = changeSkinToNone
     try:
       organisation = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-      transaction.commit()
       self.tic()
       organisation.activate(activity=activity).changeSkinToNone()
-      transaction.commit()
+      self.commit()
       self.assertEquals(len(activity_tool.getMessageList()), 1)
       self.flushAllActivities(silent=1, loop_size=100)
       self.assertEquals(len(activity_tool.getMessageList()), 0)
@@ -2605,30 +2340,27 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       message = '\nCheck similarities are not deleted before execution of original message (SQLDict)'
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
-    organisation = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
-    self.tic()
     activity_tool = self.getActivityTool()
-    check_result_dict = {}
-    def checkActivityCount(self, other_tag):
-      if len(check_result_dict) == 0:
-        check_result_dict['done'] = activity_tool.countMessage(tag=other_tag)
+    marker = []
+    def doSomething(self, other_tag):
+      marker.append(self.countMessage(tag=other_tag))
+    activity_tool.__class__.doSomething = doSomething
     try:
-      Organisation.checkActivityCount = checkActivityCount
       # Adds two similar but not the same activities.
-      organisation.activate(activity='SQLDict', tag='a').checkActivityCount(other_tag='b')
-      organisation.activate(activity='SQLDict', tag='b').checkActivityCount(other_tag='a')
-      transaction.commit()
-      self.assertEqual(len(activity_tool.getMessageList()), 2)
+      activity_tool.activate(activity='SQLDict', after_tag='foo',
+        tag='a').doSomething(other_tag='b')
+      activity_tool.activate(activity='SQLDict', after_tag='bar',
+        tag='b').doSomething(other_tag='a')
+      self.commit()
+      activity_tool.tic() # make sure distribution phase was not skipped
       activity_tool.distribute()
       # after distribute, similarities are still there.
       self.assertEqual(len(activity_tool.getMessageList()), 2)
-      self.tic()
+      activity_tool.tic()
       self.assertEqual(len(activity_tool.getMessageList()), 0)
-      self.assertEqual(len(check_result_dict), 1)
-      self.assertEqual(check_result_dict['done'], 1)
+      self.assertEqual(marker, [1])
     finally:
-      delattr(Organisation, 'checkActivityCount')
+      del activity_tool.__class__.doSomething
 
   def test_102_2_CheckSQLDictDeleteDuplicatesBeforeExecution(self, quiet=0, run=run_all_test):
     """
@@ -2640,33 +2372,30 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       message = '\nCheck duplicates are deleted before execution of original message (SQLDict)'
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
-    organisation = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
-    self.tic()
     activity_tool = self.getActivityTool()
-    check_result_dict = {}
-    def checkActivityCount(self, other_tag):
-      if len(check_result_dict) == 0:
-        check_result_dict['done'] = activity_tool.countMessage(tag=other_tag)
+    marker = []
+    def doSomething(self, other_tag):
+      marker.append(self.countMessage(tag=other_tag))
+    activity_tool.__class__.doSomething = doSomething
     try:
-      Organisation.checkActivityCount = checkActivityCount
       # Adds two same activities.
-      organisation.activate(activity='SQLDict', tag='a', priority=2).checkActivityCount(other_tag='a')
-      transaction.commit()
+      activity_tool.activate(activity='SQLDict', after_tag='foo', priority=2,
+        tag='a').doSomething(other_tag='a')
+      self.commit()
       uid1, = [x.uid for x in activity_tool.getMessageList()]
-      organisation.activate(activity='SQLDict', tag='a', priority=1).checkActivityCount(other_tag='a')
-      transaction.commit()
+      activity_tool.activate(activity='SQLDict', after_tag='bar', priority=1,
+        tag='a').doSomething(other_tag='a')
+      self.commit()
       self.assertEqual(len(activity_tool.getMessageList()), 2)
       activity_tool.distribute()
       # After distribute, duplicate is deleted.
       uid2, = [x.uid for x in activity_tool.getMessageList()]
       self.assertNotEqual(uid1, uid2)
-      self.tic()
+      activity_tool.tic()
       self.assertEqual(len(activity_tool.getMessageList()), 0)
-      self.assertEqual(len(check_result_dict), 1)
-      self.assertEqual(check_result_dict['done'], 1)
+      self.assertEqual(marker, [1])
     finally:
-      delattr(Organisation, 'checkActivityCount')
+      del activity_tool.__class__.doSomething
 
   def test_102_3_CheckSQLDictDistributeWithSerializationTagAndGroupMethodId(
       self, quiet=0):
@@ -2678,14 +2407,13 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
         foo.activate(serialization_tag='a').getId()
     """
     organisation = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     organisation.activate(serialization_tag='a').getId()
-    transaction.commit()
+    self.commit()
     organisation.activate(serialization_tag='a',
               group_method_id='portal_catalog/catalogObjectList').getTitle()
-    transaction.commit()
+    self.commit()
     self.assertEqual(len(activity_tool.getMessageList()), 2)
     activity_tool.distribute()
     # After distribute, there is no deletion because it is different method
@@ -2707,13 +2435,12 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       ZopeTestCase._print(message)
       LOG('Testing... ',0,message)
     organisation = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     check_result_dict = {}
     def runAndCheck():
       check_result_dict.clear()
-      transaction.commit()
+      self.commit()
       self.assertEqual(len(check_result_dict), 0)
       self.tic()
       self.assertEqual(len(check_result_dict), 2)
@@ -2754,7 +2481,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     document.__class__.doSomething = extractActivityRuntimeEnvironment
     try:
       document.activate(activity=activity).doSomething()
-      transaction.commit()
+      self.commit()
       # Check that getActivityRuntimeEnvironment raises outside of activities
       self.assertRaises(KeyError, document.getActivityRuntimeEnvironment)
       # Check Runtime isolation
@@ -2792,7 +2519,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
 
   def CheckSerializationTag(self, activity):
     organisation = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     activity_tool = self.getActivityTool()
     result = activity_tool.getMessageList()
@@ -2800,7 +2526,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # First scenario: activate, distribute, activate, distribute
     # Create first activity and distribute: it must be distributed
     organisation.activate(activity=activity, serialization_tag='1').getTitle()
-    transaction.commit()
+    self.commit()
     result = activity_tool.getMessageList()
     self.assertEqual(len(result), 1)
     activity_tool.distribute()
@@ -2808,7 +2534,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     self.assertEqual(len([x for x in result if x.processing_node == 0]), 1)
     # Create second activity and distribute: it must *NOT* be distributed
     organisation.activate(activity=activity, serialization_tag='1').getTitle()
-    transaction.commit()
+    self.commit()
     result = activity_tool.getMessageList()
     self.assertEqual(len(result), 2)
     activity_tool.distribute()
@@ -2822,7 +2548,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     organisation.activate(activity=activity, serialization_tag='1', priority=2).getTitle()
     # Use a different method just so that SQLDict doesn't merge both activities prior to insertion.
     organisation.activate(activity=activity, serialization_tag='1', priority=1).getId()
-    transaction.commit()
+    self.commit()
     result = activity_tool.getMessageList()
     self.assertEqual(len(result), 2)
     activity_tool.distribute()
@@ -2906,17 +2632,16 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     activity_tool = self.getActivityTool()
     container = self.getPortal().organisation_module
     organisation = container.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     organisation.activate(activity=activity).getTitle()
-    transaction.commit()
+    self.commit()
     self.assertEqual(len(activity_tool.getMessageList()), 1)
     # Here, we delete the subobject using most low-level method, to avoid
     # pending activity to be removed.
     organisation_id = organisation.id
     container._delOb(organisation_id)
     del organisation # Avoid keeping a reference to a deleted object.
-    transaction.commit()
+    self.commit()
     self.assertEqual(getattr(container, organisation_id, None), None)
     self.assertEqual(len(activity_tool.getMessageList()), 1)
     activity_tool.distribute()
@@ -2963,18 +2688,17 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     container = self.getPortalObject().organisation_module
     organisation = container.newContent(portal_type='Organisation')
     organisation_2 = container.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     organisation.reindexObject()
     organisation_2.reindexObject()
-    transaction.commit()
+    self.commit()
     self.assertEqual(len(activity_tool.getMessageList()), 2)
     # Here, we delete the subobject using most low-level method, to avoid
     # pending activity to be removed.
     organisation_id = organisation.id
     container._delOb(organisation_id)
     del organisation # Avoid keeping a reference to a deleted object.
-    transaction.commit()
+    self.commit()
     self.assertEqual(getattr(container, organisation_id, None), None)
     self.assertEqual(len(activity_tool.getMessageList()), 2)
     activity_tool.distribute()
@@ -3005,7 +2729,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       language=LANGUAGE, translation=TO_STRING, note='')
     organisation = portal.organisation_module.newContent(
       portal_type='Organisation')
-    transaction.commit()
     self.tic()
     Organisation.translationTest = translationTest
     try:
@@ -3013,7 +2736,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       # Simulate what a browser would have sent to Zope
       REQUEST.environ['HTTP_ACCEPT_LANGUAGE'] = LANGUAGE
       organisation.activate(activity=activity).translationTest()
-      transaction.commit()
+      self.commit()
       # Remove request parameter to check that it was saved at activate call
       # and restored at message execution.
       del REQUEST.environ['HTTP_ACCEPT_LANGUAGE']
@@ -3054,10 +2777,9 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # With Message.__call__
     # 1: activity context does not exist when activity is executed
     organisation = portal.organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     organisation.activate().getTitle() # This generates the mssage we want to test.
-    transaction.commit()
+    self.commit()
     message_list = activity_tool.getMessageList()
     self.assertEqual(len(message_list), 1)
     message = message_list[0]
@@ -3067,7 +2789,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     activity_tool.manageCancel(message.object_path, message.method_id)
     # 2: activity method does not exist when activity is executed
     portal.organisation_module.activate().this_method_does_not_exist()
-    transaction.commit()
+    self.commit()
     message_list = activity_tool.getMessageList()
     self.assertEqual(len(message_list), 1)
     message = message_list[0]
@@ -3078,10 +2800,9 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # With ActivityTool.invokeGroup
     # 1: activity context does not exist when activity is executed
     organisation = portal.organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     organisation.activate().getTitle() # This generates the mssage we want to test.
-    transaction.commit()
+    self.commit()
     message_list = activity_tool.getMessageList()
     self.assertEqual(len(message_list), 1)
     message = message_list[0]
@@ -3091,7 +2812,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     activity_tool.manageCancel(message.object_path, message.method_id)
     # 2: activity method does not exist when activity is executed
     portal.organisation_module.activate().this_method_does_not_exist()
-    transaction.commit()
+    self.commit()
     message_list = activity_tool.getMessageList()
     self.assertEqual(len(message_list), 1)
     message = message_list[0]
@@ -3121,7 +2842,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     portal.portal_skins.manage_skinLayers(add_skin=1, skinpath=[''], skinname=skin_selection_name)
     # Create a dummy document
     organisation = portal.organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     # Set custom methods to call as activities.
     def first(context):
@@ -3136,7 +2856,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     try:
       organisation.activate(tag='foo', activity='SQLQueue').firstTest()
       organisation.activate(after_tag='foo', activity='SQLQueue').secondTest()
-      transaction.commit()
+      self.commit()
       import gc
       gc.disable()
       self.tic()
@@ -3175,7 +2895,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     portal = self.getPortalObject()
     activity_tool = self.getActivityTool()
     organisation = portal.organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     activity_event = threading.Event()
     rendez_vous_event = threading.Event()
@@ -3184,16 +2903,16 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       rendez_vous_event.set()
       # When this event is available, it means test has called process_shutdown.
       activity_event.wait()
-    from Products.CMFActivity.Activity.Queue import Queue
-    original_queue_tic = Queue.tic
+    from Products.CMFActivity.Activity.SQLDict import SQLDict
+    original_dequeue = SQLDict.dequeueMessage
     queue_tic_test_dict = {}
-    def Queue_tic(self, activity_tool, processing_node):
-      result = original_queue_tic(self, activity_tool, processing_node)
-      queue_tic_test_dict['isAlive'] = process_shutdown_thread.isAlive()
+    def dequeueMessage(self, activity_tool, processing_node):
       # This is a one-shot method, revert after execution
-      Queue.tic = original_queue_tic
+      SQLDict.dequeueMessage = original_dequeue
+      result = self.dequeueMessage(activity_tool, processing_node)
+      queue_tic_test_dict['isAlive'] = process_shutdown_thread.isAlive()
       return result
-    Queue.tic = Queue_tic
+    SQLDict.dequeueMessage = dequeueMessage
     Organisation.waitingActivity = waitingActivity
     try:
       # Use SQLDict with no group method so that both activities won't be
@@ -3201,10 +2920,10 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       # if execution should stop processing activities.
       organisation.activate(activity='SQLDict', tag='foo').waitingActivity()
       organisation.activate(activity='SQLDict', after_tag='foo').getTitle()
-      transaction.commit()
+      self.commit()
       self.assertEqual(len(activity_tool.getMessageList()), 2)
       activity_tool.distribute()
-      transaction.commit()
+      self.commit()
 
       # Start a tic in another thread, so they can meet at rendez-vous.
       class ActivityThread(threading.Thread):
@@ -3258,13 +2977,12 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
           pass
     finally:
       delattr(Organisation, 'waitingActivity')
-      Queue.tic = original_queue_tic
+      SQLDict.dequeueMessage = original_dequeue
 
   def test_hasActivity(self):
     active_object = self.portal.organisation_module.newContent(
                                             portal_type='Organisation')
     active_process = self.portal.portal_activities.newActiveProcess()
-    transaction.commit()
     self.tic()
 
     self.assertFalse(active_object.hasActivity())
@@ -3273,7 +2991,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     def test(obj, **kw):
       for activity in ('SQLDict', 'SQLQueue'):
         active_object.activate(activity=activity, **kw).getTitle()
-        transaction.commit()
+        self.commit()
         self.assertTrue(obj.hasActivity(), activity)
         self.tic()
         self.assertFalse(obj.hasActivity(), activity)
@@ -3290,7 +3008,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     """
     active_object = self.portal.organisation_module.newContent(
                                             portal_type='Organisation')
-    transaction.commit()
     self.tic()
     self.assertFalse(active_object.hasActivity())
 
@@ -3302,7 +3019,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     DB.original_query = DB.query
     try:
       active_object.activate().getTitle()
-      transaction.commit()
+      self.commit()
       self.assertTrue(active_object.hasActivity())
       # Make the sql request not working
       DB.original_query = DB.query
@@ -3379,34 +3096,33 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
 
     portal = self.getPortal()
     activity_tool = portal.portal_activities
-    transaction.commit()
     self.tic()
 
     # Add 6 activities
     portal.organisation_module.activate(activity='SQLDict', tag='', serialization_tag='test_115').getId()
-    transaction.commit()
+    self.commit()
     portal.organisation_module.activate(activity='SQLDict', serialization_tag='test_115').getTitle()
-    transaction.commit()
+    self.commit()
     portal.organisation_module.activate(activity='SQLDict', tag='tag_1', serialization_tag='test_115').getId()
-    transaction.commit()
+    self.commit()
     portal.person_module.activate(activity='SQLDict', serialization_tag='test_115').getId()
-    transaction.commit()
+    self.commit()
     portal.person_module.activate(activity='SQLDict', tag='tag_2').getId()
-    transaction.commit()
+    self.commit()
     portal.organisation_module.activate(activity='SQLDict', tag='', serialization_tag='test_115').getId()
-    transaction.commit()
+    self.commit()
 
     # distribute and assign them to 3 nodes
     activity_tool.distribute()
-    transaction.commit()
+    self.commit()
 
     from Products.CMFActivity import ActivityTool
     ActivityTool.activity_dict['SQLDict'].getProcessableMessageList(activity_tool, 1)
-    transaction.commit()
+    self.commit()
     ActivityTool.activity_dict['SQLDict'].getProcessableMessageList(activity_tool, 2)
-    transaction.commit()
+    self.commit()
     ActivityTool.activity_dict['SQLDict'].getProcessableMessageList(activity_tool, 3)
-    transaction.commit()
+    self.commit()
 
     result = activity_tool.SQLDict_readMessageList(include_processing=1,
                                                    processing_node=None,
@@ -3440,7 +3156,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       # Clear activities from all nodes
       activity_tool.SQLBase_delMessage(table=SQLDict.sql_table,
                                        uid=[message.uid for message in result])
-      transaction.commit()
+      self.commit()
 
   def test_116_RaiseInCommitBeforeMessageExecution(self):
     """
@@ -3454,13 +3170,12 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     try:
       for activity in 'SQLDict', 'SQLQueue':
         activity_tool.activate(activity=activity).doSomething(activity)
-        transaction.commit()
-        activity_tool.distribute()
+        self.commit()
         # Make first commit in dequeueMessage raise
         registerFailingTransactionManager()
         self.assertRaises(CommitFailed, activity_tool.tic)
         # Normally, the request stops here and Zope aborts the transaction
-        transaction.abort()
+        self.abort()
         self.assertEqual(processed, [])
         # Activity is already in 'processing=1' state. Check tic reselects it.
         activity_tool.tic()
@@ -3479,7 +3194,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     # is migrated to an instance of a portal type class, otherwise
     # the portal type may generate an extra active object.
     portal.person_module.newContent(portal_type='Person')
-    transaction.commit()
     self.tic()
 
     original_reindex_parameters = portal.getPlacelessDefaultReindexParameters()
@@ -3495,7 +3209,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     self.assertEquals({'activate_kw': {'tag': tag}}, \
                        current_default_reindex_parameters)
     person = portal.person_module.newContent(portal_type='Person')
-    transaction.commit()
+    self.commit()
     # as we specified it in setPlacelessDefaultReindexParameters we should have
     # an activity for this tags
     self.assertEquals(1, portal.portal_activities.countMessageWithTag(tag))
@@ -3510,10 +3224,8 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
 
   def TryNotificationSavedOnEventLogWhenNotifyUserRaises(self, activity):
     activity_tool = self.getActivityTool()
-    transaction.commit()
     self.tic()
     obj = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     original_notifyUser = Message.notifyUser
     def failSendingEmail(self, *args, **kw):
@@ -3530,18 +3242,18 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     try:
       import traceback
       obj.activate(activity=activity, priority=6).failingMethod()
-      transaction.commit()
+      self.commit()
       self.flushAllActivities(silent=1, loop_size=100)   
       message_list = activity_tool.getMessageList()
       self.assertEqual(len(message_list), 1)
       message = message_list[0]
       logged_errors = []
       logged_errors = self.logged
-      transaction.commit()
+      self.commit()
       for log_record in self.logged:
         if log_record.name == 'ActivityTool' and log_record.levelname == 'WARNING':
           type, value, trace = log_record.exc_info
-      transaction.commit()
+      self.commit()
       self.assertTrue(activity_unit_test_error is value)
     finally:
       self._ignore_log_errors()
@@ -3575,10 +3287,8 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     activity_tool = self.getActivityTool()
     # With Message.__call__
     # 1: activity context does not exist when activity is executed
-    transaction.commit()
     self.tic()
     obj = self.getPortal().organisation_module.newContent(portal_type='Organisation')
-    transaction.commit()
     self.tic()
     notification_done = []
     def fake_notifyUser(self, *args, **kw):
@@ -3591,7 +3301,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     Organisation.failingMethod = failingMethod
     try:
       obj.activate(activity=activity).failingMethod()
-      transaction.commit()
+      self.commit()
       self.flushAllActivities(silent=1, loop_size=100)
       message_list = activity_tool.getMessageList()
       self.assertEqual(len(message_list), 1)
@@ -3630,7 +3340,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     if not organisation_module.hasContent(self.company_id):
       organisation_module.newContent(id=self.company_id)
     o = organisation_module._getOb(self.company_id)
-    transaction.commit()
+    self.commit()
     self.flushAllActivities(silent = 1, loop_size = 10)
     self.assertEquals(len(activity_tool.getMessageList()), 0)
     class ActivityUnitTestError(Exception):
@@ -3654,12 +3364,12 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
 
     try:
       o.activate(activity = activity).failingMethod()
-      transaction.commit()
+      self.commit()
       self.assertEquals(len(activity_tool.getMessageList()), 1)
       self.flushAllActivities(silent = 1)
       SiteErrorLog.raising = SiteErrorLog.original_raising
       logged_errors = self.logged
-      transaction.commit()
+      self.commit()
       for log_record in self.logged:
         if log_record.name == 'ActivityTool' and log_record.levelname == 'WARNING':
           type, value, trace = log_record.exc_info     
@@ -3710,8 +3420,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
         
       activity_tool.__class__.doSomething = doSomething
       activity_tool.activate(activity='SQLQueue').doSomething()
-      transaction.commit()
-      activity_tool.distribute()
+      self.commit()
       activity_tool.tic()
       message_list = activity_tool.getMessageList()
       self.assertEquals(['doSomething'],[x.method_id for x in message_list])
@@ -3723,7 +3432,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
     activity_tool = self.portal.portal_activities
     obj1 = activity_tool.newActiveProcess()
     obj2 = activity_tool.newActiveProcess()
-    transaction.commit()
     self.tic()
     group_method_call_list = []
     def doSomething(self, message_list):
@@ -3736,7 +3444,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
                            group_method_id='portal_activities/doSomething')
         obj1.activate(**activity_kw).dummy(1, x=None)
         obj2.activate(**activity_kw).dummy(2, y=None)
-        transaction.commit()
+        self.commit()
         activity_tool.distribute()
         activity_tool.tic()
         self.assertEqual(group_method_call_list.pop(),
@@ -3748,7 +3456,7 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
         obj1.activate(priority=1, **activity_kw).dummy2(2, y=None)
         message1 = obj1.getPath(), (1,), dict(x=None)
         message2 = obj1.getPath(), (2,), dict(y=None)
-        transaction.commit()
+        self.commit()
         activity_tool.distribute()
         self.assertEqual(len(activity_tool.getMessageList()), 2)
         activity_tool.tic()
@@ -3769,7 +3477,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
       person.activate(activity='SQLQueue')._setLastName('Smith')
     person = self.portal.person_module.newContent()
     transaction.get().addBeforeCommitHook(doSomething, (person,))
-    transaction.commit()
     self.tic()
     self.assertEqual(person.getTitle(), 'John Smith')
 
@@ -3823,7 +3530,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
   def test_onErrorCallback(self):
     activity_tool = self.portal.portal_activities
     obj = activity_tool.newActiveProcess()
-    transaction.commit()
     self.tic()
     def _raise(exception): # I wish exceptions are callable raising themselves
       raise exception
@@ -3848,7 +3554,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
           weakref_list = []
           obj.activity_count = obj.on_error_count = 0
           obj.activate(activity=activity).doSomething(conflict_error, True)
-          transaction.commit()
           self.tic()
           self.assertEqual(obj.activity_count, 0)
           self.assertEqual(obj.on_error_count, 1)
@@ -3857,7 +3562,6 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
           weakref_list = []
           obj.activate(activity=activity).doSomething(conflict_error, False)
           obj.on_error_count = 0
-          transaction.commit()
           self.tic()
           self.assertEqual(obj.activity_count, 1)
           self.assertEqual(obj.on_error_count, 1)
@@ -3865,6 +3569,87 @@ class TestCMFActivity(ERP5TypeTestCase, LogInterceptor):
           self.assertEqual([x() for x in weakref_list], [None, None])
     finally:
       del obj.__class__.doSomething
+
+  def test_duplicateGroupedMessage(self):
+    activity_tool = self.portal.portal_activities
+    obj = activity_tool.newActiveProcess()
+    obj.reindexObject(activate_kw={'tag': 'foo', 'after_tag': 'bar'})
+    self.commit()
+    invoked = []
+    def invokeGroup(self, *args):
+      invoked.append(len(args[1]))
+      return ActivityTool_invokeGroup(self, *args)
+    ActivityTool_invokeGroup = activity_tool.__class__.invokeGroup
+    try:
+      activity_tool.__class__.invokeGroup = invokeGroup
+      self.tic()
+    finally:
+      activity_tool.__class__.invokeGroup = ActivityTool_invokeGroup
+    self.assertEqual(invoked, [1])
+
+  def test_mergeParent(self):
+    category_tool = self.portal.portal_categories
+    # Test data:     c0
+    #               /  \
+    #             c1    c2
+    #            /  \   |
+    #           c3  c4  c5
+    c = [category_tool.newContent()]
+    for i in xrange(5):
+      c.append(c[i//2].newContent())
+    transaction.commit()
+    self.tic()
+    def activate(i, priority=1, **kw):
+      kw.setdefault('merge_parent', c[0].getPath())
+      c[i].activate(priority=priority, **kw).doSomething()
+    def check(*expected):
+      transaction.commit()
+      self.tic()
+      self.assertEquals(tuple(invoked), expected)
+      del invoked[:]
+    invoked = []
+    def doSomething(self):
+      invoked.append(c.index(self))
+    Base.doSomething = doSomething
+    try:
+      for t in (0, 1), (0, 4, 2), (1, 0, 5), (3, 2, 0):
+        for p, i in enumerate(t):
+          activate(i, p)
+        check(0)
+      activate(1, 0); activate(5, 1); check(1, 5)
+      activate(3, 0); activate(1, 1); check(1)
+      activate(2, 0); activate(1, 1); activate(4, 2); check(2, 1)
+      activate(4, 0); activate(5, 1); activate(3, 2); check(4, 5, 3)
+      activate(3, 0, merge_parent=c[1].getPath()); activate(0, 1); check(3, 0)
+      # Following test shows that a child can be merged with a parent even if
+      # 'merge_parent' is not specified. This can't be avoided without loading
+      # all found duplicates, which would be bad for performance.
+      activate(0, 0); activate(4, 1, merge_parent=None); check(0)
+    finally:
+      del Base.doSomething
+    def activate(i, priority=1, **kw):
+      c[i].activate(group_method_id='portal_categories/invokeGroup',
+                    merge_parent=c[(i-1)//2 or i].getPath(),
+                    priority=priority, **kw).doSomething()
+    def invokeGroup(self, message_list):
+      invoked.append([c.index(m[0]) for m in message_list])
+    category_tool.__class__.invokeGroup = invokeGroup
+    try:
+      activate(5, 0); activate(1, 1); check([5, 1])
+      activate(4, 0); activate(1, 1); activate(2, 0); check([1, 2])
+      activate(1, 0); activate(5, 0); activate(3, 1); check([1, 5])
+      for p, i in enumerate((5, 3, 2, 1, 4)):
+        activate(i, p, group_id=str(2 != i != 5))
+      check([2], [1])
+      for cost in 0.3, 0.1:
+        activate(2, 0, group_method_cost=cost)
+        activate(3, 1);  activate(4, 2); activate(1, 3)
+        check([2, 1])
+    finally:
+      del category_tool.__class__.invokeGroup
+    category_tool._delObject(c[0].getId())
+    transaction.commit()
+    self.tic()
 
 def test_suite():
   suite = unittest.TestSuite()

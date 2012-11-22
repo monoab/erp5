@@ -42,7 +42,7 @@ class DownloadableMixin:
   ### Content processing methods
   security.declareProtected(Permissions.View, 'index_html')
   @fill_args_from_request('display', 'quality', 'resolution', 'frame', 'pre_converted_only')
-  def index_html(self, REQUEST, RESPONSE, format=_MARKER, **kw):
+  def index_html(self, REQUEST, RESPONSE, format=_MARKER, inline=_MARKER, **kw):
     """
       We follow here the standard Zope API for files and images
       and extend it to support format conversion. The idea
@@ -86,16 +86,17 @@ class DownloadableMixin:
     output_format = None
     if not format:
       # Guess the format from original mimetype
-      mimetypes_registry = getToolByName(self.getPortalObject(),
-                                                          'mimetypes_registry')
-      mimetype_object_list = mimetypes_registry.lookup(mime)
-      for mimetype_object in mimetype_object_list:
-        if mimetype_object.extensions:
-          output_format = mimetype_object.extensions[0]
-          break
-        elif mimetype_object.globs:
-          output_format = mimetype_object.globs.strip('*.')
-          break
+      if mime:
+        mimetypes_registry = getToolByName(self.getPortalObject(),
+                                                            'mimetypes_registry')
+        mimetype_object_list = mimetypes_registry.lookup(mime)
+        for mimetype_object in mimetype_object_list:
+          if mimetype_object.extensions:
+            output_format = mimetype_object.extensions[0]
+            break
+          elif mimetype_object.globs:
+            output_format = mimetype_object.globs.strip('*.')
+            break
     else:
       output_format = format
 
@@ -104,9 +105,15 @@ class DownloadableMixin:
       RESPONSE.setHeader('Content-Type', '%s; charset=utf-8' % mime)
     else:
       RESPONSE.setHeader('Content-Type', mime)
-    if output_format not in (VALID_TEXT_FORMAT_LIST + VALID_IMAGE_FORMAT_LIST):
+    if inline is _MARKER:
+      # by default, use inline for text and image formats
+      inline = output_format in (VALID_TEXT_FORMAT_LIST + VALID_IMAGE_FORMAT_LIST)
+    if not inline:
       # need to return it as attachment
       filename = self.getStandardFilename(format=format)
+      RESPONSE.setHeader('Cache-Control', 'Private') # workaround for Internet Explorer's bug
+      # workaround for IE's bug to download files over SSL
+      RESPONSE.setHeader('Pragma', '')
       RESPONSE.setHeader('Content-Disposition',
                          'attachment; filename="%s"' % filename)
       RESPONSE.setHeader('Accept-Ranges', 'bytes')

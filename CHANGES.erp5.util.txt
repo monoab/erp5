@@ -1,10 +1,179 @@
 Changes
 =======
 
-0.3 (unreleased)
+0.4.16 (2012-11-14)
+------------------
+
+ * erp5.util.testnode:
+
+  - Improve handling of Xvfb and firefox [Sebastien Robin]
+  - check supported parameters of runTestSuite [Pere Cortes]
+  - add unit for runTestSuite [Pere Cortes]
+
+0.4.15 (2012-11-07)
+------------------
+
+ * erp5.util.testnode:
+
+  - fixed profile generation when software repos is not defined first
+    [Sebastien Robin]
+  - ask wich test has priority to master more often [Sebastien Robin]
+
+0.4.14 (2012-11-05)
+------------------
+
+ * erp5.util.testnode:
+
+  - force rebuilding software to avoid using old soft/code [Sebastien Robin]
+
+ * erp5.util.taskdistribution:
+
+  - handle another possible error with master [Sebastien Robin]
+
+0.4.13 (2012-10-31)
+------------------
+
+ * erp5.util.testnode:
+
+  - Add unit test for erp5testnode (with some hardcoded path that
+    needs to be fixed ASAP) [Sebastien Robin]
+  - Split long functions into several more simple ones for code
+    simplicity and readability [Sebastien Robin]
+
+0.4.12 (2012-10-25)
+------------------
+
+ * erp5.util.testnode:
+
+  - Fixed several issues introduced by the management of test
+    suite by the master [Sebastien Robin] 
+
+0.4.11 (2012-10-22)
+------------------
+
+ * erp5.util.testnode:
+
+  - Take test suite parameters from the master, to allow distribution
+    of the work by the master [Pere Cortes], [Sebastien Robin] 
+
+0.4.10 (2012-10-01)
+------------------
+
+ * erp5.util.testnode:
+
+  - Allow to use a firefox built by testnode for
+    functional tests [Gabriel Monnerat]
+
+0.4.9 (2012-10-01)
+------------------
+
+ * erp5.util.testnode:
+
+  - remove --now parameter when calling slapgrid-sr since
+    it is not yet well supported [Sebastien Robin]
+
+0.4.8 (2012-09-27)
+------------------
+
+ * erp5.util.testnode:
+
+  - use taskdistribution module to reduce code
+    [Vincent Pelletier], [Pere Cortes]
+
+0.4.7 (2012-09-03)
+------------------
+
+ * erp5.util.taskdistribution:
+
+  - work around test lines acquiring values from parent when no value is
+    provided. [Vincent Pelletier]
+  - fix a regression introduced in 0.4.6 which allowed parallel XMLRPC calls,
+    which is not supported. [Rafael Monnerat]
+
+ * erp5.util.benchmark:
+
+  - check whether at least one result file could be found when generating a
+    scalability report. [Arnaud Fontaine]
+  - make sure that diagram bars are properly aligned in scalability test
+    report. [Arnaud Fontaine]
+
+ * erp5.util.testsuite:
+
+  - new module [Rafael Monnerat]
+
+0.4.6 (2012-08-10)
+------------------
+
+ * erp5.util.taskdistribution:
+
+  - set socket timeout for RPC calls to prevent a deadlock happens.
+    [Rafael Monnerat]
+
+0.4.5 (2012-07-04)
+------------------
+
+ * erp5.util.taskdistribution:
+
+  - xmlrpclib does not support named parameters, use positional ones
+    [Vincent Pelletier]
+
+0.4.4 (2012-07-04)
+------------------
+
+ * erp5.util.taskdistribution:
+
+  - New module [Vincent Pelletier]
+
+0.4.3 (2012-04-24)
 ----------------
 
- * No changes yet
+ * erp5.util.testnode:
+
+  - Improve detection of the cancellation of a test on the master
+  - better management of SIGTERM signal
+  - cleanup test instances to make sure nothing stay from a previous
+    test run
+
+0.4.2 (2012-04-11)
+----------------
+
+ * erp5.util.testnode:
+
+  - Improve testnode logs
+  - add a thread to upload ongoing logs to the master regularly
+  - if the software release is not built successfully after a
+    few time, totally erase software. This help unblocking if
+    buildout is unable to update software.
+  - check if the last test result was cancelled in order to
+    allow relaunching test without restarting testnode
+
+0.4.1 (2012-02-29)
+----------------
+
+ * erp5.util.testnode:
+
+  - Improve testnode's reliability when contacting remote master
+  - Try to build software releases multiple times before giving up
+
+
+0.3 (2011-12-23)
+----------------
+
+ * erp5.util.webchecker:
+
+   - Imported from https://svn.erp5.org/repos/public/erp5/trunk/utils/
+     Utility to check caching policy of websites
+
+ * erp5.util.testnode:
+
+   - improve logging [Sebastien Robin]
+   - fix passing bt5_path [Gabriel Monnerat]
+   - fix profile_path concatenation [Nicolas Delaby]
+   - fix git updating and parsing repository paths [Julien Muchembled]
+
+ * erp5.util.benchmark:
+
+  - new utility, work in progress [Arnaud Fontaine]
 
 0.2 (2011-09-20)
 ----------------
@@ -19,5 +188,5 @@ Changes
 0.1 (2011-08-08)
 ----------------
 
- * erp5.util.testnode imported from recipe like slapos.cookbook
+ * erp5.util.testnode imported from recipe-like slapos.cookbook
    [Łukasz Nowak]

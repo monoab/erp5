@@ -66,19 +66,25 @@ try:
 except ImportError:
   magic = None
 
+# XXX-JPS: We need naming conventions and central list of decorators.
 def simple_decorator(decorator):
   """Decorator to turn simple function into well-behaved decorator
 
   See also http://wiki.python.org/moin/PythonDecoratorLibrary
 
   XXX We should use http://pypi.python.org/pypi/decorator/ instead,
-      to make decorators ZPublisher-friendly.
+      to make decorators ZPublisher-friendly (but it is probably to slow).
   """
   def new_decorator(f):
     g = decorator(f)
-    g.__name__ = f.__name__
-    g.__doc__ = f.__doc__
-    g.__dict__.update(f.__dict__)
+    try:
+      g.__name__ = f.__name__
+    except AttributeError:
+      # XXX: Should be "convertToMixedCase(f._transition_id)"
+      g.__name__ = f._m.__name__ # WorkflowMethod
+    else:
+      g.__doc__ = f.__doc__
+      g.__dict__.update(f.__dict__)
     g._original = f # for tab_completion navigation in IPython
     return g
   # Now a few lines needed to make simple_decorator itself
@@ -957,29 +963,17 @@ def registerDocumentClass(module_name, class_name):
   old_value = document_class_registry.get(class_name)
   new_value = "%s.%s" % (module_name, class_name)
 
-  if old_value is not None:
-    old_was_erp5 = old_value.startswith('Products.ERP5')
-    new_is_erp5 = module_name.startswith('Products.ERP5')
-
-    conflict = True
-    if not old_was_erp5:
-      if new_is_erp5:
-        # overwrite the non-erp5 class with the erp5 class
-        # likely to happen with e.g. CMF Category Tool and ERP5 Category Tool
-        LOG('Utils', INFO, 'Replacing non-ERP5 class %s by ERP5 class %s' %
-              (old_value, new_value))
-        conflict = False
-    elif not new_is_erp5:
-      # argh, trying to overwrite an existing erp5 class.
-      LOG('Utils', INFO,
-          'Ignoring replacement of ERP5 class %s by non-ERP5 class %s' %
-            (old_value, new_value))
-      return
-
-    if conflict:
-      raise TypeError("Class %s and %s from different products have the "
+  if old_value:
+    if class_name == 'CategoryTool':
+      if module_name == 'Products.CMFCategory.CategoryTool':
+        LOG('Utils', WARNING,
+            "Ignoring replacement of %s by %s" % (old_value, new_value))
+        return
+      assert module_name == 'Products.ERP5.Tool.CategoryTool', module_name
+      LOG('Utils', WARNING, "Replacing %s by %s" % (old_value, new_value))
+    else:
+      raise Exception("Class %s and %s from different products have the "
                       "same name" % (old_value, new_value))
-
   document_class_registry[class_name] = new_value
 
 def initializeProduct( context,
@@ -1036,10 +1030,12 @@ def initializeProduct( context,
   # once.
   try:
     import erp5.portal_type
+    import erp5.component
   except ImportError:
-    from dynamic.portal_type_class import initializeDynamicModules
+    from .dynamic.dynamic_module import initializeDynamicModules
     initializeDynamicModules()
     import erp5.portal_type
+    import erp5.component
 
   # Tools initialization
   tools = portal_tools

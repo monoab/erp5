@@ -28,6 +28,7 @@
 ##############################################################################
 
 from Products.ERP5.MovementCollectionDiff import _getPropertyAndCategoryList
+from Products.ERP5Type.Globals import PersistentMapping
 from CopyToTarget import CopyToTarget
 from Acquisition import aq_base
 
@@ -74,6 +75,14 @@ class SplitAndDefer(CopyToTarget):
         **self.additional_parameters
       )
       new_movement = applied_rule.newContent(**movement_dict)
+      # Dirty code until IPropertyRecordable is revised.
+      # Merge original simulation movement recorded property to new one.
+      recorded_property_dict = simulation_movement._getRecordedPropertyDict(None)
+      if recorded_property_dict:
+        new_movement_recorded_property_dict = new_movement._getRecordedPropertyDict(None)
+        if new_movement_recorded_property_dict is None:
+          new_movement_recorded_property_dict = new_movement._recorded_property_dict = PersistentMapping()
+        new_movement_recorded_property_dict.update(recorded_property_dict)
       # record zero quantity property, because this was originally zero.
       # without this, splitanddefer after accept decision does not work
       # properly.
@@ -89,11 +98,11 @@ class SplitAndDefer(CopyToTarget):
       if stop_date is not None:
         new_movement.recordProperty('stop_date')
         new_movement.edit(stop_date=stop_date)
-      new_movement.activate(**self.additional_parameters).expand()
+      new_movement.expand(activate_kw=self.additional_parameters)
     # adopt new quantity on original simulation movement
     simulation_movement.edit(quantity=new_movement_quantity)
-    simulation_movement.setDefaultActivateParameters(**self.activate_kw)
-    simulation_movement.activate(**self.additional_parameters).expand()
+    simulation_movement.setDefaultActivateParameterDict(self.activate_kw)
+    simulation_movement.expand(activate_kw=self.additional_parameters)
 
     # SplitAndDefer solves the divergence at the current level, no need to
     # backtrack.

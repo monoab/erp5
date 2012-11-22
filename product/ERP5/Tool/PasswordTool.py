@@ -70,9 +70,10 @@ class PasswordTool(BaseTool):
     # BaseTool.__init__(self, id)
 
   security.declareProtected('Manage users', 'getResetPasswordKey')
-  def getResetPasswordKey(self, user_login):
-    # generate expiration date
-    expiration_date = DateTime() + self._expiration_day
+  def getResetPasswordKey(self, user_login, expiration_date=None):
+    if expiration_date is None:
+      # generate expiration date
+      expiration_date = DateTime() + self._expiration_day
 
     # generate a random string
     key = self._generateUUID()
@@ -110,8 +111,10 @@ class PasswordTool(BaseTool):
 
 
   def mailPasswordResetRequest(self, user_login=None, REQUEST=None,
-                              notification_message=None, sender=None,
-                              store_as_event=False):
+                               notification_message=None, sender=None,
+                               store_as_event=False,
+                               expiration_date=None,
+                               substitution_method_parameter_dict=None):
     """
     Create a random string and expiration date for request
     Parameters:
@@ -123,6 +126,9 @@ class PasswordTool(BaseTool):
             As default, the default email address will be used
     store_as_event -- whenever CRM is available, store
                         notifications as events
+    expiration_date -- If not set, expiration date is current date + 1 day.
+    substitution_method_parameter_dict -- additional substitution dict for
+                                          creating an email.
     """
     if REQUEST is None:
       REQUEST = get_request()
@@ -159,13 +165,16 @@ class PasswordTool(BaseTool):
         return REQUEST.RESPONSE.redirect( ret_url )
       return msg
 
-    key = self.getResetPasswordKey(user_login=user_login)
+    key = self.getResetPasswordKey(user_login=user_login,
+                                   expiration_date=expiration_date)
     url = self.getResetPasswordUrl(key=key, site_url=site_url)
 
     # send mail
     message_dict = {'instance_name':self.getPortalObject().getTitle(),
                     'reset_password_link':url,
                     'expiration_date':self.getExpirationDateForKey(key)}
+    if substitution_method_parameter_dict is not None:
+      message_dict.update(substitution_method_parameter_dict)
 
     if notification_message is None:
       subject = translateString("[${instance_name}] Reset of your password",
@@ -182,16 +191,22 @@ class PasswordTool(BaseTool):
                 "Thank you",
                 mapping=message_dict)
       message = message.translate()
+      event_keyword_argument_dict={}
     else:
       subject = notification_message.getTitle()
       if notification_message.getContentType() == "text/html":
         message = notification_message.asEntireHTML(substitution_method_parameter_dict=message_dict)
       else:
         message = notification_message.asText(substitution_method_parameter_dict=message_dict)
+      event_keyword_argument_dict={
+        'resource':notification_message.getSpecialise(),
+        'language':notification_message.getLanguage(),
+      }
 
     self.getPortalObject().portal_notifications.sendMessage(sender=sender, recipient=[user,],
                                                             subject=subject, message=message,
-                                                            store_as_event=store_as_event)
+                                                            store_as_event=store_as_event,
+                                                            event_keyword_argument_dict=event_keyword_argument_dict)
     if REQUEST is not None:
       msg = translateString("An email has been sent to you.")
       parameter = urlencode(dict(portal_status_message=msg))

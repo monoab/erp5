@@ -27,12 +27,10 @@
 
 import unittest
 
-import transaction
 
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from AccessControl.SecurityManagement import newSecurityManager
 from Products.ERP5Form.Form import ERP5Form
-from Products.ERP5.tests.utils import newSimulationExpectedFailure
 
 
 class TestICal(ERP5TypeTestCase):
@@ -67,7 +65,6 @@ class TestICal(ERP5TypeTestCase):
     if hasattr(self.portal.person_module, 'one'):
       self.portal.person_module.manage_delObjects(['one'])
     one = self.portal.person_module.newContent(id="one", title="One", description="Person One")
-    transaction.commit()
     self.tic()
     
   def parseICalFeed(self,  feed_string):
@@ -105,7 +102,6 @@ class TestICal(ERP5TypeTestCase):
     if not run: return    
     module = self.portal.event_module
     event = module.newContent(id='one', title='Event One', portal_type='Phone Call')
-    transaction.commit()
     self.tic()
     
     feed_dict = self.getICalFeed(module)
@@ -128,10 +124,9 @@ class TestICal(ERP5TypeTestCase):
     self.assertEquals(feed_dict['STATUS'], 'TENTATIVE')
     
     # set start date, description and change workflow state - new
-    event.receive()
+    event.plan()
     event.setStartDate('2007/08/15 08:30 UTC')
     event.setDescription('Event One description')
-    transaction.commit()
     self.tic()
     
     feed_dict = self.getICalFeed(module)
@@ -145,31 +140,30 @@ class TestICal(ERP5TypeTestCase):
     # check categorization
     sale_op = self.portal.sale_opportunity_module.newContent(portal_type='Sale Opportunity', title='New Opportunity', reference='NEWSALEOP')
     event.setFollowUp(sale_op.getRelativeUrl())
-    transaction.commit()
     self.tic()
     
     feed_dict = self.getICalFeed(module)
     self.assertTrue(feed_dict['CATEGORIES'] in ('NEWSALEOP', 'New Opportunity')) # forward compatibility
     
     # set stop date and change workflow state - assigned
-    event.assign()
+    event.confirm()
+    event.start()
     event.setStopDate('2007/08/15 13:30 UTC')
-    transaction.commit()
     self.tic()
     
     feed_dict = self.getICalFeed(module)
     self.assertEquals(feed_dict['DTEND'], '20070815T133000Z')
     self.assertEquals(feed_dict['STATUS'], 'CONFIRMED')
     
-    # cancel event
-    event.cancel()
-    transaction.commit()
+    # cancel event but first remove previously created
+    module.manage_delObjects([event.getId()])
+    event2 = module.newContent(title='Event Two', portal_type='Phone Call')
+    event2.cancel()
     self.tic()
-    
+     
     feed_dict = self.getICalFeed(module)
     self.assertEquals(feed_dict['STATUS'], 'CANCELLED')
 
-  @newSimulationExpectedFailure
   def test_02_renderTask(self, quiet=0, run=run_all_test):
     """
       Task - is rendered as "todo".
@@ -180,7 +174,6 @@ class TestICal(ERP5TypeTestCase):
     if not run: return    
     module = self.portal.task_module
     task = module.newContent(id='one', title='Task One', start_date='2007/08/15')
-    transaction.commit()
     self.tic()
    
    # current workflow state - draft
@@ -197,7 +190,6 @@ class TestICal(ERP5TypeTestCase):
                                                                           title='New Project', 
                                                                           reference='NEWPROJ')
     task.setSourceProjectValue(project)
-    transaction.commit()
     self.tic()
     
     feed_dict = self.getICalFeed(module)
@@ -205,7 +197,6 @@ class TestICal(ERP5TypeTestCase):
     
     # change workflow state - planned
     task.plan()
-    transaction.commit()
     self.tic()
     
     feed_dict = self.getICalFeed(module)
@@ -214,7 +205,6 @@ class TestICal(ERP5TypeTestCase):
     
     # change workflow state - ordered
     task.order()
-    transaction.commit()
     self.tic()
     
     feed_dict = self.getICalFeed(module)
@@ -223,7 +213,6 @@ class TestICal(ERP5TypeTestCase):
     
     # change workflow state - confirmed
     task.confirm()
-    transaction.commit()
     self.tic()
     
     feed_dict = self.getICalFeed(module)

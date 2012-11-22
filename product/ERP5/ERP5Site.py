@@ -44,6 +44,7 @@ from zLOG import LOG, INFO, WARNING, ERROR
 from string import join
 import os
 import warnings
+from App.config import getConfiguration
 MARKER = []
 
 
@@ -268,7 +269,7 @@ class ERP5Site(FolderMixIn, CMFSite, CacheCookieMixin):
 
   def _doTranslationDomainRegistration(self):
     from zope.i18n.interfaces import ITranslationDomain
-    from Products.ERP5Type.patches.Localizer import (
+    from Products.Localizer.MessageCatalog import (
       message_catalog_alias_sources
     )
     sm = self.getSiteManager()
@@ -339,7 +340,16 @@ class ERP5Site(FolderMixIn, CMFSite, CacheCookieMixin):
     if 'ERP5Site.__of__' not in tv and type(parent) is Application:
       tv['ERP5Site.__of__'] = None
       setSite(self)
-      synchronizeDynamicModules(self)
+
+      try:
+        component_tool = self.portal_components
+      except AttributeError:
+        # This should only happen before erp5_core is installed
+        synchronizeDynamicModules(self)
+      else:
+        # If Components are reset, then portal type classes should be reset
+        synchronizeDynamicModules(self, component_tool.reset())
+
     return self
 
   def manage_beforeDelete(self, item, container):
@@ -433,6 +443,69 @@ class ERP5Site(FolderMixIn, CMFSite, CacheCookieMixin):
       Return the title.
     """
     return self.title
+
+  security.declareProtected(Permissions.AccessContentsInformation,
+                            'getVersionPriorityList')
+  def getVersionPriorityList(self):
+    """
+    Return the Component version priorities defined on the site in descending
+    order. Whatever happens, erp5 version must always be returned otherwise it
+    may render the site unusable when all Products will have been migrated
+    """
+    return getattr(self, '_version_priority_list', None) or ('erp5 | 0.0',)
+
+  security.declareProtected(Permissions.ModifyPortalContent,
+                            'setVersionPriorityList' )
+  def setVersionPriorityList(self, version_priority_tuple):
+    """
+    Set Version Priority List and make sure that erp5 version is always
+    defined whatever the given value is
+
+    XXX-arnau: must be written through an interaction workflow when ERP5Site
+               will become a real ERP5 object...
+    """
+    if not isinstance(version_priority_tuple, tuple):
+      version_priority_tuple = tuple(version_priority_tuple)
+
+    # erp5 version must always be present, thus add it at the end if it's not
+    # already there
+    for version_priority in version_priority_tuple:
+      if version_priority.split('|')[0].strip() == 'erp5':
+        break
+    else:
+      version_priority_tuple = version_priority_tuple + ('erp5 | 0.0',)
+
+    self._version_priority_list = version_priority_tuple
+
+    # Reset cached value of getVersionPriorityNameList() if present
+    try:
+      del self._v_version_priority_name_list
+    except AttributeError:
+      pass
+
+    # Make sure that reset is not performed when creating a new site
+    if not getattr(self, '_v_bootstrapping', False):
+      try:
+        self.portal_components.resetOnceAtTransactionBoundary()
+      except AttributeError:
+        # This should only happen before erp5_core is installed
+        pass
+
+  version_priority_list = property(getVersionPriorityList,
+                                   setVersionPriorityList)
+
+  security.declareProtected(Permissions.AccessContentsInformation,
+                            'getVersionPriorityNameList')
+  def getVersionPriorityNameList(self):
+    """
+    Get only the version names ordered by priority and cache it as it is used
+    very often in Component import hooks
+    """
+    if getattr(self, '_v_version_priority_name_list', None) is None:
+      self._v_version_priority_name_list = \
+          [name.split('|')[0].strip() for name in self.getVersionPriorityList()]
+
+    return self._v_version_priority_name_list
 
   security.declareProtected(Permissions.AccessContentsInformation, 'getUid')
   def getUid(self):
@@ -570,6 +643,38 @@ class ERP5Site(FolderMixIn, CMFSite, CacheCookieMixin):
 
     # Fall back to the default.
     return getattr(ERP5Defaults, id, None)
+
+  security.declareProtected(Permissions.ManagePortal, 'getPromiseParameter')
+  def getPromiseParameter(self, section, option):
+    """
+    Read external promise parameters.
+
+    The parameters should be provided by an external configuration file.
+    Location of this configuration file is defined in the zope configuration
+    file in a product_config named as the path of the ERP5 site.
+    Example if the site id is erp5:
+      <product-config /erp5>
+        promise_path /tmp/promise.cfg
+      </product-config>
+
+    The promise configuration is a simple ConfigParser readable file (a list of
+    section containing a list of string parameters.
+
+    getPromiseParameter returns None if the parameter isn't found.
+    """
+    config = getConfiguration()
+    if getattr(config, 'product_config', None) is not None:
+      parameter_dict = config.product_config.get(self.getPath(), {})
+      if 'promise_path' in parameter_dict:
+        promise_path = parameter_dict['promise_path']
+        import ConfigParser
+        configuration = ConfigParser.ConfigParser()
+        configuration.read(promise_path)
+        try:
+          return configuration.get(section, option)
+        except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+          pass
+    return None
 
   def _getPortalGroupedTypeList(self, group, enable_sort=True):
     """
@@ -1460,29 +1565,12 @@ class ERP5Site(FolderMixIn, CMFSite, CacheCookieMixin):
     key = ('default_reindex_parameter', )
     tv[key] = kw
 
-  security.declarePublic('setPlacelessDefaultActivateParameters')
-  def setPlacelessDefaultActivateParameters(self, **kw):
-    # This method sets the default keyword parameters to activate. This is useful
-    # when you need to specify special parameters implicitly (e.g. to reindexObject).
-    # Those parameters will affect all activate calls, not just ones on self.
-    tv = getTransactionalVariable()
-    key = ('default_activate_parameter', )
-    tv[key] = kw
-
   security.declarePublic('getPlacelessDefaultReindexParameters')
   def getPlacelessDefaultReindexParameters(self):
     # This method returns default reindex parameters to self.
     # The result can be either a dict object or None.
     tv = getTransactionalVariable()
     key = ('default_reindex_parameter', )
-    return tv.get(key)
-
-  security.declarePublic('getPlacelessDefaultActivateParameters')
-  def getPlacelessDefaultActivateParameters(self):
-    # This method returns default activate parameters to self.
-    # The result can be either a dict object or None.
-    tv = getTransactionalVariable()
-    key = ('default_activate_parameter', )
     return tv.get(key)
 
   security.declareProtected(Permissions.ManagePortal, 'getERP5SiteGlobalId')
@@ -1661,6 +1749,13 @@ class ERP5Generator(PortalGenerator):
     parent._setObject(id, portal)
     # Return the fully wrapped object.
     p = parent.this()._getOb(id)
+
+    # setProperty cannot be used for this property as it is a property object
+    # to _version_priority_list and valid_property_id doesn't accept property
+    # name starting with '_'. The property getter always returns at least erp5
+    # version so it only needs to be added to local properties
+    p._local_properties = getattr(self, '_local_properties', ()) + \
+        ({'id': 'version_priority_list', 'type': 'lines'},)
 
     erp5_sql_deferred_connection_string = erp5_sql_connection_string
     p._setProperty('erp5_catalog_storage',
@@ -2072,6 +2167,7 @@ class ERP5Generator(PortalGenerator):
     if not update:
       self.setupWorkflow(p)
       self.setupERP5Core(p,**kw)
+      self.setupERP5Promise(p,**kw)
 
     # Make sure the cache is initialized
     p.portal_caches.updateCache()
@@ -2096,3 +2192,16 @@ class ERP5Generator(PortalGenerator):
         url = getBootstrapBusinessTemplateUrl(bt)
         bt = template_tool.download(url)
         bt.install(**kw)
+
+  def setupERP5Promise(self,p,**kw):
+    """
+    Install the ERP5 promise configurator
+    """
+    template_tool = p.portal_templates
+    # Configure the bt5 repository
+    repository = p.getPromiseParameter('portal_templates', 'repository')
+    if repository is not None:
+      template_tool.updateRepositoryBusinessTemplateList(repository.split())
+      template_tool.installBusinessTemplateListFromRepository(
+          ['erp5_promise'], activate=True, install_dependency=True)
+      p.portal_alarms.subscribe()

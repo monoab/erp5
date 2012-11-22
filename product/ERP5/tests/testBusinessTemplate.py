@@ -29,7 +29,6 @@
 
 import unittest
 import logging
-import transaction
 
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from Acquisition import aq_base
@@ -41,7 +40,8 @@ from Products.ERP5Type.Globals import PersistentMapping
 from Products.CMFCore.Expression import Expression
 from Products.ERP5Type.tests.utils import LogInterceptor
 from Products.ERP5Type.Workflow import addWorkflowByType
-from Products.ERP5Type.tests.backportUnittest import expectedFailure
+from Products.ERP5Type.tests.backportUnittest import expectedFailure, skip
+from Products.ERP5Type.tests.testDynamicClassGeneration import TestDeveloperMixin
 from Products.ERP5VCS.WorkingCopy import getVcsTool
 import shutil
 import os
@@ -58,7 +58,7 @@ from Products.PortalTransforms.Transform import Transform
 Transform_tr_init = Transform._tr_init
 Transform_manage_beforeDelete = Transform.manage_beforeDelete
 
-class BusinessTemplateMixin(ERP5TypeTestCase, LogInterceptor):
+class BusinessTemplateMixin(TestDeveloperMixin, ERP5TypeTestCase, LogInterceptor):
   def getBusinessTemplateList(self):
     return ('erp5_base',
             'erp5_csv_style',
@@ -103,7 +103,7 @@ class BusinessTemplateMixin(ERP5TypeTestCase, LogInterceptor):
     if (content_type_registry is not None and
         'any' in content_type_registry.predicate_ids):
       content_type_registry.removePredicate('any')
-      transaction.commit()
+      self.commit()
 
   def beforeTearDown(self):
     """Remove objects created in tests."""
@@ -181,7 +181,7 @@ class BusinessTemplateMixin(ERP5TypeTestCase, LogInterceptor):
     for property_sheet in ('UnitTest',):
       if property_sheet in property_sheet_tool.objectIds():
         property_sheet_tool.manage_delObjects([property_sheet])
-    transaction.commit()
+    self.commit()
     self._ignore_log_errors()
 
   def getBusinessTemplate(self,title):
@@ -1018,7 +1018,7 @@ class BusinessTemplateMixin(ERP5TypeTestCase, LogInterceptor):
     bt.edit(template_skin_id_list=template_skin_id_list)
 
 
-  def stepAddRegistredSelectionToBusinessTemplate(self, sequence=None, **kw):
+  def stepAddRegisteredSelectionToBusinessTemplate(self, sequence=None, **kw):
     """
     Add registered selection to business template
     """
@@ -1027,7 +1027,7 @@ class BusinessTemplateMixin(ERP5TypeTestCase, LogInterceptor):
     bt.edit(template_registered_skin_selection_list = \
         ('%s | Foo' % sequence.get('skin_folder_id'), ))
 
-  def stepEditRegistredSelectionToBusinessTemplate(self, sequence=None, **kw):
+  def stepEditRegisteredSelectionToBusinessTemplate(self, sequence=None, **kw):
     """
     Add registered selection to business template
     """
@@ -1898,6 +1898,66 @@ class BusinessTemplateMixin(ERP5TypeTestCase, LogInterceptor):
     self.failUnless('catalog.reference'
                     in catalog.sql_search_result_keys)
 
+  def stepModifyRelatedKey(self, sequence):
+    catalog = self.getCatalogTool().getSQLCatalog()
+    related_key = sequence['related_key']
+    related_key_list = list(catalog.sql_catalog_related_keys)
+    related_key_list.remove(related_key)
+    # related_key_2 <- 'fake_id | category/catalog/z_fake_method_2':
+    related_key_2 = related_key + '_2'
+    related_key_list.append(related_key_2)
+    catalog.sql_catalog_related_keys = tuple(related_key_list)
+    sequence['related_key_2'] = related_key_2
+    # check related key column is not present twice:
+    self.assertTrue(related_key_2.startswith('fake_id |'), related_key_2)
+    self.assertEqual(len([key for key in related_key_list
+                          if key.startswith('fake_id |')]), 1)
+
+  def stepCheckRelatedKeyNonDuplicated(self, sequence):
+    catalog = self.getCatalogTool().getSQLCatalog()
+    related_key = sequence['related_key']
+    related_key_2 = sequence['related_key_2']
+    related_key_list = list(catalog.sql_catalog_related_keys)
+    # stepModifyRelatedKey added related_key_2 and removed related_key
+    # but the reinstallation of the BT replaced related_key_2 with
+    # related_key:
+    self.assertTrue(related_key in related_key_list)
+    self.assertFalse(related_key_2 in related_key_list)
+    # make sure there's only one entry
+    self.assertTrue(related_key.startswith('fake_id |'), related_key)
+    self.assertEqual(len([key for key in related_key_list
+                          if key.startswith('fake_id |')]), 1)
+
+  def stepDuplicateRelatedKeyColumn(self, sequence):
+    catalog = self.getCatalogTool().getSQLCatalog()
+    related_key = sequence['related_key']
+    related_key_2 = sequence['related_key_2']
+    related_key_list = list(catalog.sql_catalog_related_keys)
+    self.assertTrue(related_key in related_key_list)
+    self.assertFalse(related_key_2 in related_key_list)
+    # we manually duplicate the key in the list, creating an invalid situation
+    self.assertEqual(len([key for key in related_key_list
+                          if key.startswith('fake_id |')]), 1)
+    related_key_list.append(related_key_2)
+    catalog.sql_catalog_related_keys = tuple(related_key_list)
+    self.assertEqual(len([key for key in related_key_list
+                          if key.startswith('fake_id |')]), 2)
+    
+  def stepCheckOnlyDuplicateRelatedKeyRemains(self, sequence):
+    catalog = self.getCatalogTool().getSQLCatalog()
+    related_key = sequence['related_key']
+    related_key_2 = sequence['related_key_2']
+    related_key_list = list(catalog.sql_catalog_related_keys)
+    # after the uninstallation of the BT, only the wrong/duplicated
+    # entry remains because the original was uninstalled with the BT.
+    # This also means that an uninstallation of a BT does not
+    # accidentally removes an overriding key from another BT that
+    # depends on it.
+    self.assertFalse(related_key in related_key_list)
+    self.assertTrue(related_key_2 in related_key_list)
+    self.assertEqual(len([key for key in related_key_list
+                          if key.startswith('fake_id |')]), 1)
+
   def stepRemoveCatalogLocalConfiguration(self, sequence, **kw):
     """
     Remove modification made in stepModifyCatalogConfiguration
@@ -1919,7 +1979,13 @@ class BusinessTemplateMixin(ERP5TypeTestCase, LogInterceptor):
     sql_search_tables.remove(result_table)
     sql_search_tables.sort()
     catalog.sql_search_tables = tuple(sql_search_tables)
-    self.failUnless(result_table not in catalog.sql_search_tables)
+    self.assertFalse(result_table in catalog.sql_search_tables)
+    # related key
+    related_key_2 = sequence['related_key_2']
+    sql_catalog_related_keys = list(catalog.sql_catalog_related_keys)
+    sql_catalog_related_keys.remove(related_key_2)
+    catalog.sql_catalog_related_keys = tuple(sql_catalog_related_keys)
+    self.assertFalse(related_key_2 in catalog.sql_catalog_related_keys)
 
   def stepAddKeysAndTableToBusinessTemplate(self, sequence=None, **kw):
     """
@@ -2814,7 +2880,7 @@ class BusinessTemplateMixin(ERP5TypeTestCase, LogInterceptor):
                   description='bt for unit_test')
     sequence.edit(dependency_bt=template)
 
-  def stepSetSkinFolderRegistredSelections(self, sequence=None, **kw):
+  def stepSetSkinFolderRegisteredSelections(self, sequence=None, **kw):
     ps = self.getSkinsTool()
     skin_id = sequence.get('skin_folder_id')
     skin_folder = ps._getOb(skin_id, None)
@@ -2822,7 +2888,7 @@ class BusinessTemplateMixin(ERP5TypeTestCase, LogInterceptor):
           'business_template_registered_skin_selections', ('Foo',),
           type='tokens')
 
-  def stepSetSkinFolderRegistredSelections2(self, sequence=None, **kw):
+  def stepSetSkinFolderRegisteredSelections2(self, sequence=None, **kw):
     ps = self.getSkinsTool()
     skin_id = sequence.get('skin_folder_id')
     skin_folder = ps._getOb(skin_id, None)
@@ -2833,7 +2899,7 @@ class BusinessTemplateMixin(ERP5TypeTestCase, LogInterceptor):
     ps = self.getSkinsTool()
     ps.manage_skinLayers(skinpath=('erp5_core',), skinname='Foo', add_skin=1)
 
-  def stepSetStaticSkinFolderRegistredSelections(self, sequence=None, **kw):
+  def stepSetStaticSkinFolderRegisteredSelections(self, sequence=None, **kw):
     ps = self.getSkinsTool()
     skin_id = sequence.get('static_skin_folder_id')
     skin_folder = ps._getOb(skin_id, None)
@@ -5250,7 +5316,10 @@ class TestBusinessTemplate(BusinessTemplateMixin):
     sequence_list.play(self)
 
   def test_30_CheckInstalledCatalogProperties(self):
-    """Test if installing some new catalog properties overwrites existing ones"""
+    """
+    Test if installing some new catalog properties do not overwrite existing ones
+
+    Also check that it doesn't install two keys for the same column"""
     sequence_list = SequenceList()
     sequence_string = '\
                        CreateCatalogMethod \
@@ -5262,12 +5331,16 @@ class TestBusinessTemplate(BusinessTemplateMixin):
                        BuildBusinessTemplate \
                        SaveBusinessTemplate \
                        ModifyCatalogConfiguration \
+                       ModifyRelatedKey \
                        ImportBusinessTemplate \
                        UseImportBusinessTemplate \
                        InstallBusinessTemplate \
                        Tic \
                        CheckCatalogConfigurationKept \
+                       CheckRelatedKeyNonDuplicated \
+                       DuplicateRelatedKeyColumn \
                        UninstallBusinessTemplate \
+                       CheckOnlyDuplicateRelatedKeyRemains \
                        CheckCatalogConfigurationKept \
                        RemoveCatalogLocalConfiguration \
                        '
@@ -5364,11 +5437,11 @@ class TestBusinessTemplate(BusinessTemplateMixin):
     sequence_list = SequenceList()
     sequence_string = '\
                        CreateSkinFolder \
-                       SetSkinFolderRegistredSelections \
+                       SetSkinFolderRegisteredSelections \
                        CreateNewBusinessTemplate \
                        UseExportBusinessTemplate \
                        AddSkinFolderToBusinessTemplate \
-                       AddRegistredSelectionToBusinessTemplate \
+                       AddRegisteredSelectionToBusinessTemplate \
                        BuildBusinessTemplate \
                        SaveBusinessTemplate \
                        RemoveSkinFolder \
@@ -5946,11 +6019,11 @@ class TestBusinessTemplate(BusinessTemplateMixin):
     """Test Business Template Uninstall With Skin Selection"""
     sequence_list = SequenceList()
     sequence_string = 'CreateSkinFolder \
-                       SetSkinFolderRegistredSelections \
+                       SetSkinFolderRegisteredSelections \
                        CreateNewBusinessTemplate \
                        UseExportBusinessTemplate \
                        AddSkinFolderToBusinessTemplate \
-                       AddRegistredSelectionToBusinessTemplate \
+                       AddRegisteredSelectionToBusinessTemplate \
                        BuildBusinessTemplate \
                        SaveBusinessTemplate \
                        RemoveSkinFolder \
@@ -5971,12 +6044,12 @@ class TestBusinessTemplate(BusinessTemplateMixin):
     sequence_string = 'CreateSkinFolder \
                        CreateStaticSkinFolder \
                        CreateSkinSelection \
-                       SetSkinFolderRegistredSelections \
-                       SetStaticSkinFolderRegistredSelections \
+                       SetSkinFolderRegisteredSelections \
+                       SetStaticSkinFolderRegisteredSelections \
                        CreateNewBusinessTemplate \
                        UseExportBusinessTemplate \
                        AddSkinFolderToBusinessTemplate \
-                       AddRegistredSelectionToBusinessTemplate \
+                       AddRegisteredSelectionToBusinessTemplate \
                        BuildBusinessTemplate \
                        SaveBusinessTemplate \
                        RemoveSkinFolder \
@@ -5995,11 +6068,11 @@ class TestBusinessTemplate(BusinessTemplateMixin):
     """Test Business Template will not register existing Skin"""
     sequence_list = SequenceList()
     sequence_string = 'CreateSkinFolder \
-                       SetSkinFolderRegistredSelections \
+                       SetSkinFolderRegisteredSelections \
                        CreateNewBusinessTemplate \
                        UseExportBusinessTemplate \
                        AddSkinFolderToBusinessTemplate \
-                       AddRegistredSelectionToBusinessTemplate \
+                       AddRegisteredSelectionToBusinessTemplate \
                        BuildBusinessTemplate \
                        SaveBusinessTemplate \
                        RemoveSkinFolder \
@@ -6081,11 +6154,11 @@ class TestBusinessTemplate(BusinessTemplateMixin):
     sequence_list = SequenceList()
     sequence_list.addSequenceString("""
       CreateSkinFolder
-      SetSkinFolderRegistredSelections
+      SetSkinFolderRegisteredSelections
       CreateNewBusinessTemplate
       UseExportBusinessTemplate
       AddSkinFolderToBusinessTemplate
-      AddRegistredSelectionToBusinessTemplate
+      AddRegisteredSelectionToBusinessTemplate
       BuildBusinessTemplate
       SaveBusinessTemplate
       RemoveSkinFolder
@@ -6118,9 +6191,9 @@ class TestBusinessTemplate(BusinessTemplateMixin):
       CheckModifiedSkinFolderExists
       CheckSkinSelectionAdded
 
-      SetSkinFolderRegistredSelections2
+      SetSkinFolderRegisteredSelections2
       CopyBusinessTemplate
-      EditRegistredSelectionToBusinessTemplate
+      EditRegisteredSelectionToBusinessTemplate
       BuildBusinessTemplate
       InstallCurrentBusinessTemplate
       Tic
@@ -6176,7 +6249,6 @@ class TestBusinessTemplate(BusinessTemplateMixin):
       # create a previously existing instance of the overriden document type
       File = portal.portal_types.getPortalTypeClass('File')
       portal._setObject('another_file', File('another_file'))
-      transaction.commit()
       self.tic()
       # logged errors could keep a reference to a traceback having a reference
       # to 'another_file' object
@@ -6189,14 +6261,12 @@ class TestBusinessTemplate(BusinessTemplateMixin):
         bt = template_tool.download(bt_path)
         assert marker_list
         if i:
-          transaction.commit()
           self.tic()
         bt.install(force=1)
         assert not marker_list
         gc.enable()
         for id in object_id_list:
           self.assertEqual(getattr(portal, id).int_index, i)
-        transaction.commit()
         self.tic()
     finally:
       BaseTemplateItem.removeProperties = BaseTemplateItem_removeProperties
@@ -6263,13 +6333,13 @@ class TestBusinessTemplate(BusinessTemplateMixin):
                              'Dummy Type | source',),
                           template_action_path_list=(
                              'Dummy Type | view',),)
-    self.stepTic()
+    self.tic()
     bt.build()
-    self.stepTic()
+    self.tic()
     export_dir = tempfile.mkdtemp()
     try:
       bt.export(path=export_dir, local=True)
-      self.stepTic()
+      self.tic()
       # portal type template item are exported in their physical location
       for template_item in ('PortalTypeTemplateItem',
                             'ActionTemplateItem',):
@@ -6287,7 +6357,7 @@ class TestBusinessTemplate(BusinessTemplateMixin):
     types_tool.type_provider_list = registered_type_provider_list
     # uninstall the type provider (this will also uninstall the contained types)
     self.portal.manage_delObjects(['dummy_type_provider'])
-    self.stepTic()
+    self.tic()
 
     new_bt.install()
     try:
@@ -6347,13 +6417,13 @@ class TestBusinessTemplate(BusinessTemplateMixin):
                           portal_type='Business Template',
                           title='test_bt',
                           template_tool_id_list=('dummy_type_provider', ),)
-    self.stepTic()
+    self.tic()
     bt.build()
-    self.stepTic()
+    self.tic()
     export_dir = tempfile.mkdtemp()
     try:
       bt.export(path=export_dir, local=True)
-      self.stepTic()
+      self.tic()
       new_bt = self.portal.portal_templates.download(
                         url='file:/%s' % export_dir)
     finally:
@@ -6363,7 +6433,7 @@ class TestBusinessTemplate(BusinessTemplateMixin):
     types_tool.type_provider_list = registered_type_provider_list
     # uninstall the type provider (this will also uninstall the contained types)
     self.portal.manage_delObjects(['dummy_type_provider'])
-    self.stepTic()
+    self.tic()
 
     new_bt.install()
 
@@ -6379,13 +6449,13 @@ class TestBusinessTemplate(BusinessTemplateMixin):
     bt = self.portal.portal_templates.newContent(
                           portal_type='Business Template',
                           title='test_bt',)
-    self.stepTic()
+    self.tic()
     bt.build()
-    self.stepTic()
+    self.tic()
     export_dir = tempfile.mkdtemp()
     try:
       bt.export(path=export_dir, local=True)
-      self.stepTic()
+      self.tic()
       new_bt = self.portal.portal_templates.download(
                         url='file:/%s' % export_dir)
     finally:
@@ -6411,13 +6481,13 @@ class TestBusinessTemplate(BusinessTemplateMixin):
                           title='test_bt',
                           template_action_path_list=(
                              'portal_actions | test_global_action',),)
-    self.stepTic()
+    self.tic()
     bt.build()
-    self.stepTic()
+    self.tic()
     export_dir = tempfile.mkdtemp()
     try:
       bt.export(path=export_dir, local=True)
-      self.stepTic()
+      self.tic()
       # actions are exported in portal_types/ and then the id of the container
       # tool
       self.assertEquals(['portal_actions'],
@@ -6430,12 +6500,12 @@ class TestBusinessTemplate(BusinessTemplateMixin):
 
     # manually uninstall the action
     self.portal.portal_actions.deleteActions(selections=[action_idx])
-    self.stepTic()
+    self.tic()
 
     # install the business template and make sure the action is properly
     # installed
     new_bt.install()
-    self.stepTic()
+    self.tic()
     self.assertNotEquals(None,
         self.portal.portal_actions.getActionInfo('object_view/test_global_action'))
 
@@ -6449,7 +6519,7 @@ class TestBusinessTemplate(BusinessTemplateMixin):
             id='exported_path',
             title='Exported',
             portal_type='Folder')
-    self.stepTic()
+    self.tic()
 
     uid = self.portal.exported_path.getUid()
 
@@ -6458,13 +6528,13 @@ class TestBusinessTemplate(BusinessTemplateMixin):
                           title='test_bt',
                           template_path_list=(
                             'exported_path',))
-    self.stepTic()
+    self.tic()
     bt.build()
-    self.stepTic()
+    self.tic()
     export_dir = tempfile.mkdtemp()
     try:
       bt.export(path=export_dir, local=True)
-      self.stepTic()
+      self.tic()
       new_bt = self.portal.portal_templates.download(
                         url='file:/%s' % export_dir)
     finally:
@@ -6472,7 +6542,7 @@ class TestBusinessTemplate(BusinessTemplateMixin):
 
     # modify the document
     self.portal.exported_path.setTitle('Modified')
-    self.stepTic()
+    self.tic()
 
     # install the business template
     new_bt.install()
@@ -6483,7 +6553,7 @@ class TestBusinessTemplate(BusinessTemplateMixin):
     # but its uid did not change
     self.assertEquals(uid, self.portal.exported_path.getUid())
     # and it is still in the catalog
-    self.stepTic()
+    self.tic()
     self.assertEquals(self.portal.exported_path,
         self.portal.portal_catalog.getResultValue(uid=uid))
 
@@ -6527,6 +6597,90 @@ class TestBusinessTemplate(BusinessTemplateMixin):
     new_bt5_obj.build()
     template_tool.export(new_bt5_obj)
 
+  def test_local_roles_group_id(self):
+    """Tests that roles definition defining local roles group ids are properly
+    exported and installed.
+    """
+    # change security uid columns
+    sql_catalog = self.portal.portal_catalog.getSQLCatalog()
+    saved_sql_catalog_security_uid_columns = \
+      sql_catalog.sql_catalog_security_uid_columns
+
+    sql_catalog.sql_catalog_security_uid_columns = (
+      ' | security_uid',
+      'Alternate | alternate_security_uid',
+    )
+    # add category
+    self.portal.portal_categories.local_role_group.newContent(
+      portal_type='Category', 
+      reference = 'Alternate',
+      id = 'Alternate')
+
+    types_tool = self.portal.portal_types
+    object_type = types_tool.newContent('Geek Object', 'Base Type',
+                                type_class='Person')
+
+    types_tool.newContent('Geek Module', 'Base Type',
+      type_class='Folder',
+      type_filter_content_type=1,
+      type_allowed_content_type_list=('Geek Object',), )
+
+    self.portal.newContent(portal_type='Geek Module', id='geek_module')
+    new_object = self.portal.geek_module.newContent(
+      portal_type='Geek Object', id='1')
+
+    # simulate role assignment
+    new_object.__ac_local_roles__ = dict(group=['Assignee'])
+    initial___ac_local_roles_group_id_dict__ = dict(Alternate=set([('group', 'Assignee')]))
+    new_object.__ac_local_roles_group_id_dict__ = initial___ac_local_roles_group_id_dict__
+    self.tic()
+
+    object_type.newContent(portal_type='Role Information',
+                           local_role_group_value=self.portal.portal_categories.local_role_group.Alternate.getRelativeUrl(),
+                           role_name_list=('Assignee', ))
+
+    bt = self.portal.portal_templates.newContent(
+                          portal_type='Business Template',
+                          title=self.id(),
+                          template_local_roles_list=('geek_module/1',),
+                          template_path_list=('geek_module/1',),
+                          template_portal_type_role_list=('Geek Object',),)
+
+    self.tic()
+    bt.build()
+    self.tic()
+    export_dir = tempfile.mkdtemp()
+    try:
+      bt.export(path=export_dir, local=True)
+      self.tic()
+      new_bt = self.portal.portal_templates.download(
+                        url='file://%s' % export_dir)
+    finally:
+      shutil.rmtree(export_dir)
+
+    # uninstall role information and paths
+    object_type.manage_delObjects([x.id for x in object_type.getRoleInformationList()])
+    self.portal.geek_module.manage_delObjects(['1'])
+    self.tic()
+
+    new_bt.install()
+    try:
+      role, = object_type.getRoleInformationList()
+      self.assertEquals(self.portal.portal_categories.local_role_group.Alternate, 
+                        role.getLocalRoleGroupValue())
+      path = self.portal.geek_module['1']
+      self.assertEquals([('group', ['Assignee'],)], [item for item in
+            path.__ac_local_roles__.items() if item[1] != ['Owner']])
+      self.assertEquals(initial___ac_local_roles_group_id_dict__,
+        path.__ac_local_roles_group_id_dict__)
+    finally:
+      # restore state
+      sql_catalog.sql_catalog_security_uid_columns = \
+        saved_sql_catalog_security_uid_columns
+      types_tool.manage_delObjects(['Geek Object', 'Geek Module'])
+      self.portal.manage_delObjects(['geek_module'])
+      self.tic()
+
   def test_BusinessTemplateWithTest(self):
     sequence_list = SequenceList()
     sequence_string = '\
@@ -6564,6 +6718,101 @@ class TestBusinessTemplate(BusinessTemplateMixin):
                        '
     sequence_list.addSequenceString(sequence_string)
     sequence_list.play(self)
+
+  def stepSetVersionPriorityRegisteredSelection(self, sequence=None, **kw):
+    bt = sequence.get('current_bt')
+    self.failIf(bt is None)
+
+    version_priority_list = ('abc| 1.0',
+                             'def |99.0',
+                             'erp4')
+
+    bt.edit(template_registered_version_priority_selection_list=version_priority_list)
+
+    sequence.edit(expected_version_priority_list=('def | 99.0',
+                                                  'abc | 1.0',
+                                                  'erp5 | 0.0',
+                                                  'erp4 | 0.0'),
+                  current_bt_version_priority_list=tuple(sorted(version_priority_list)))
+
+  def stepUpdateVersionPriorityRegisteredSelection(self, sequence=None, **kw):
+    bt = sequence.get('current_bt')
+    self.failIf(bt is None)
+
+    version_priority_list = ('erp4',
+                             'abc | 1.0',
+                             'foo | 2.0',
+                             'bar | 100.0')
+
+    bt.edit(template_registered_version_priority_selection_list=version_priority_list)
+
+    sequence.edit(expected_version_priority_list=('bar | 100.0',
+                                                  'foo | 2.0',
+                                                  'abc | 1.0',
+                                                  'erp5 | 0.0',
+                                                  'erp4 | 0.0'),
+                  current_bt_version_priority_list=tuple(sorted(version_priority_list)))
+
+  def stepCheckVersionPriorityRegisteredSelection(self, sequence=None, **kw):
+    bt = sequence.get('current_bt')
+    self.assertEqual(tuple(bt.getTemplateRegisteredVersionPrioritySelectionList()),
+                     sequence['current_bt_version_priority_list'])
+
+  def stepRemoveVersionPriorityRegisteredSelectionBeforeImport(self,
+                                                               sequence=None,
+                                                               **kw):
+    bt = sequence.get('current_bt')
+    bt.edit(template_registered_version_priority_selection_list=())
+
+  def stepCheckVersionPrioritySetOnSite(self, sequence=None, **kw):
+    bt = sequence.get('current_bt')
+    self.assertEqual(self.getPortalObject().getVersionPriorityList(),
+                     sequence['expected_version_priority_list'])
+
+  def stepCheckVersionPriorityRemovedFromSite(self, sequence=None, **kw):
+    bt = sequence.get('current_bt')
+    self.assertEqual(self.getPortalObject().getVersionPriorityList(),
+                     ('erp5 | 0.0',))
+
+  def stepRemoveVersionPriorityRegisteredSelection(self, sequence=None, **kw):
+    bt = sequence.get('current_bt')
+    bt.edit(template_registered_version_priority_selection=())
+    sequence.edit(expected_version_priority_list=('erp5 | 0.0'),
+                  current_bt_version_priority_list=())
+
+  def test_BusinessTemplateWithVersionPrioritySelection(self):
+    sequence_list = SequenceList()
+    sequence_string = 'CreateNewBusinessTemplate \
+                       UseExportBusinessTemplate \
+                       SetVersionPriorityRegisteredSelection \
+                       BuildBusinessTemplate \
+                       SaveBusinessTemplate \
+                       RemoveVersionPriorityRegisteredSelectionBeforeImport \
+                       ImportBusinessTemplate \
+                       UseImportBusinessTemplate \
+                       CheckVersionPriorityRegisteredSelection \
+                       InstallWithoutForceBusinessTemplate \
+                       Tic \
+                       CheckVersionPrioritySetOnSite \
+                       UninstallBusinessTemplate \
+                       Tic \
+                       CheckVersionPriorityRemovedFromSite \
+                       \
+                       UpdateVersionPriorityRegisteredSelection \
+                       BuildBusinessTemplate \
+                       CheckVersionPriorityRegisteredSelection \
+                       InstallWithoutForceBusinessTemplate \
+                       Tic \
+                       CheckVersionPrioritySetOnSite \
+                       UninstallBusinessTemplate \
+                       Tic \
+                       CheckVersionPriorityRemovedFromSite \
+                       '
+
+    sequence_list.addSequenceString(sequence_string)
+    sequence_list.play(self)
+
+from Products.ERP5Type.Core.DocumentComponent import DocumentComponent
 
 class TestDocumentTemplateItem(BusinessTemplateMixin):
   document_title = 'UnitTest'
@@ -6860,6 +7109,298 @@ class TestDocumentTemplateItem(BusinessTemplateMixin):
     sequence_list.addSequenceString(sequence_string)
     sequence_list.play(self)
 
+  # Specific to ZODB Components *only*
+  def getBusinessTemplateList(self):
+    return (super(TestDocumentTemplateItem, self).getBusinessTemplateList() +
+            ('erp5_core_component',))
+
+  component_module = DocumentComponent._getDynamicModuleNamespace()
+  component_portal_type = DocumentComponent.portal_type
+
+  def stepCreateZodbDocument(self, sequence=None, **kw):
+    document_id = self.component_module + '.erp5.' + self.document_title
+    self.getPortalObject().portal_components.newContent(
+      id=document_id,
+      version='erp5',
+      reference=self.document_title,
+      text_content=self.document_data,
+      portal_type=self.component_portal_type)
+
+    sequence.edit(document_title=self.document_title,
+                  document_id=document_id,
+                  document_data=self.document_data)
+
+  def stepAddZodbDocumentToBusinessTemplate(self, sequence=None, **kw):
+    getattr(sequence['current_bt'], self.set_template_id_method_name)(
+      sequence['document_id'])
+
+  def stepRemoveZodbDocument(self, sequence=None, **kw):
+    self.getPortalObject().portal_components.deleteContent(
+      sequence['document_id'])
+
+  def stepCheckZodbDocumentExists(self, sequence=None, **kw):
+    self.assertHasAttribute(self.getPortalObject().portal_components,
+                            sequence['document_id'])
+
+  def stepCheckZodbDocumentRemoved(self, sequence=None, **kw):
+    component_tool = self.getPortalObject().portal_components
+    self.failIf(sequence['document_id'] in component_tool.objectIds())
+
+  def stepRemoveZodbDocument(self, sequence=None, **kw):
+    self.portal.portal_components.manage_delObjects([sequence['document_id']])
+
+  def stepCheckForkedMigrationExport(self, sequence=None, **kw):
+    """
+    After saving a Business Template, two files should have been created for
+    each Component, one is the Python source code (ending with '.py') and the
+    other one is the metadata (ending with '.xml')
+    """
+    component_bt_tool_path = os.path.join(sequence['template_path'],
+                                          self.__class__.__name__[len('Test'):],
+                                          'portal_components')
+
+    self.assertTrue(os.path.exists(component_bt_tool_path))
+
+    component_id = self.component_module + '.erp5.' + sequence['document_title']
+    base_path = os.path.join(component_bt_tool_path, component_id)
+
+    python_source_code_path = base_path + '.py'
+    self.assertTrue(os.path.exists(python_source_code_path))
+
+    source_code = sequence['document_data']
+    with open(python_source_code_path) as f:
+      self.assertEquals(f.read(), source_code)
+
+    xml_path = base_path + '.xml'
+    self.assertTrue(os.path.exists(xml_path))
+
+    first_line = source_code.split('\n', 1)[0]
+    with open(xml_path) as f:
+      for line in f:
+        self.failIf(first_line in line)
+
+  def test_BusinessTemplateWithZodbDocument(self):
+    sequence_list = SequenceList()
+    sequence_string = '\
+                       CreateZodbDocument \
+                       CreateNewBusinessTemplate \
+                       UseExportBusinessTemplate \
+                       AddZodbDocumentToBusinessTemplate \
+                       CheckModifiedBuildingState \
+                       CheckNotInstalledInstallationState \
+                       BuildBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       CheckObjectPropertiesInBusinessTemplate \
+                       SaveBusinessTemplate \
+                       CheckForkedMigrationExport \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       RemoveZodbDocument \
+                       RemoveBusinessTemplate \
+                       RemoveAllTrashBins \
+                       ImportBusinessTemplate \
+                       UseImportBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       InstallWithoutForceBusinessTemplate \
+                       Tic \
+                       CheckInstalledInstallationState \
+                       CheckBuiltBuildingState \
+                       CheckNoTrashBin \
+                       CheckSkinsLayers \
+                       CheckZodbDocumentExists \
+                       UninstallBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       CheckZodbDocumentRemoved \
+                       SaveBusinessTemplate \
+                       CheckForkedMigrationExport \
+                       '
+    sequence_list.addSequenceString(sequence_string)
+    sequence_list.play(self)
+
+  def test_BusinessTemplateWithZodbDocumentNonExistingBefore(self):
+    sequence_list = SequenceList()
+    sequence_string = '\
+                       CreateNewBusinessTemplate \
+                       UseExportBusinessTemplate \
+                       CheckModifiedBuildingState \
+                       CheckNotInstalledInstallationState \
+                       BuildBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       CheckObjectPropertiesInBusinessTemplate \
+                       SaveBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       RemoveBusinessTemplate \
+                       RemoveAllTrashBins \
+                       ImportBusinessTemplate \
+                       UseImportBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       InstallWithoutForceBusinessTemplate \
+                       Tic \
+                       CheckInstalledInstallationState \
+                       CheckBuiltBuildingState \
+                       CheckNoTrashBin \
+                       CheckSkinsLayers \
+                       \
+                       CreateZodbDocument \
+                       CreateNewBusinessTemplate \
+                       UseExportBusinessTemplate \
+                       AddZodbDocumentToBusinessTemplate \
+                       CheckModifiedBuildingState \
+                       CheckNotInstalledInstallationState \
+                       BuildBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       CheckObjectPropertiesInBusinessTemplate \
+                       SaveBusinessTemplate \
+                       CheckForkedMigrationExport \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       RemoveZodbDocument \
+                       RemoveBusinessTemplate \
+                       RemoveAllTrashBins \
+                       ImportBusinessTemplate \
+                       UseImportBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       InstallWithoutForceBusinessTemplate \
+                       Tic \
+                       CheckInstalledInstallationState \
+                       CheckBuiltBuildingState \
+                       CheckNoTrashBin \
+                       CheckSkinsLayers \
+                       CheckZodbDocumentExists \
+                       UninstallBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       CheckZodbDocumentRemoved \
+                       '
+    sequence_list.addSequenceString(sequence_string)
+    sequence_list.play(self)
+
+  set_template_id_method_name = 'setTemplateDocumentId'
+
+  def stepCopyAndMigrateDocumentBusinessTemplate(self, sequence=None, **kw):
+    """
+    Simulate migration from filesystem to ZODB
+
+    XXX-arnau: implement importer at BusinessTemplate level
+    """
+    portal = self.getPortalObject()
+    template_tool = portal.portal_templates
+    current_bt = sequence['current_bt']
+    cb_data = template_tool.manage_copyObjects([current_bt.getId()])
+    copied, = template_tool.manage_pasteObjects(cb_data)
+    copied_bt = template_tool._getOb(copied['new_id'])
+    getattr(copied_bt, self.set_template_id_method_name)(sequence['document_id'])
+    self.commit()
+    sequence.edit(current_bt=copied_bt)
+
+  importFromFilesystem = DocumentComponent.importFromFilesystem
+
+  def stepImportDocumentFromFilesystem(self, sequence=None, **kw):
+    """
+    Import a Component from Filesystem to ZODB
+    """
+    component_tool = self.getPortalObject().portal_components
+
+    document_object = self.importFromFilesystem(
+      component_tool,
+      sequence['document_title'],
+      'erp5')
+
+    sequence.edit(document_id=document_object.getId())
+
+  def stepCheckDocumentMigration(self, sequence=None, **kw):
+    """
+    Check migration of Document from the Filesystem to ZODB
+    """
+    component_id = sequence['document_id']
+    component_tool = self.getPortalObject().portal_components
+    self.failUnless(component_id in component_tool.objectIds())
+
+    component = getattr(component_tool, component_id)
+    self.assertEquals(component.getReference(), sequence['document_title'])
+    self.assertEquals(component.getTextContent(), sequence['document_data'])
+    self.assertEquals(component.getPortalType(), self.component_portal_type)
+
+  def test_BusinessTemplateWithZodbDocumentMigrated(self):
+    """Checks that if Business Template defines Document and PropertySheet
+    Document is not removed after Property Sheet was migrated and Business Template
+    was updated"""
+    sequence_list = SequenceList()
+    sequence_string = '\
+                       CreateDocument \
+                       CreateNewBusinessTemplate \
+                       UseExportBusinessTemplate \
+                       AddDocumentToBusinessTemplate \
+                       CheckModifiedBuildingState \
+                       CheckNotInstalledInstallationState \
+                       BuildBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       CheckObjectPropertiesInBusinessTemplate \
+                       SaveBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       RemoveDocument \
+                       RemoveBusinessTemplate \
+                       RemoveAllTrashBins \
+                       ImportBusinessTemplate \
+                       UseImportBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       InstallWithoutForceBusinessTemplate \
+                       Tic \
+                       CheckInstalledInstallationState \
+                       CheckBuiltBuildingState \
+                       CheckNoTrashBin \
+                       CheckDocumentExists \
+                       \
+                       ImportDocumentFromFilesystem \
+                       Tic \
+                       CheckDocumentRemoved \
+                       CheckDocumentMigration \
+                       CopyAndMigrateDocumentBusinessTemplate \
+                       Tic \
+                       \
+                       CheckDraftBuildingState \
+                       CheckNotInstalledInstallationState \
+                       BuildBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       CheckObjectPropertiesInBusinessTemplate \
+                       SaveBusinessTemplate \
+                       CheckForkedMigrationExport \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       RemoveBusinessTemplate \
+                       RemoveZodbDocument \
+                       Tic \
+                       ImportBusinessTemplate \
+                       UseImportBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       InstallWithoutForceBusinessTemplate \
+                       Tic \
+                       \
+                       CheckZodbDocumentExists \
+                       CheckInstalledInstallationState \
+                       CheckBuiltBuildingState \
+                       \
+                       UninstallBusinessTemplate \
+                       CheckBuiltBuildingState \
+                       CheckNotInstalledInstallationState \
+                       CheckZodbDocumentRemoved \
+                       '
+    sequence_list.addSequenceString(sequence_string)
+    sequence_list.play(self)
+
 class TestConstraintTemplateItem(TestDocumentTemplateItem):
   document_title = 'UnitTest'
   document_data = ' \nclass UnitTest: \n  """ \n  Fake constraint for unit test \n \
@@ -6868,6 +7409,8 @@ class TestConstraintTemplateItem(TestDocumentTemplateItem):
     """ \n  _properties = ( \n  ) \n  _categories = ( \n  ) \n\n'
   document_base_path = os.path.join(getConfiguration().instancehome, 'Constraint')
   template_property = 'template_constraint_id_list'
+
+from Products.ERP5Type.Core.ExtensionComponent import ExtensionComponent
 
 class TestExtensionTemplateItem(TestDocumentTemplateItem):
   document_title = 'UnitTest'
@@ -6882,6 +7425,14 @@ class TestExtensionTemplateItem(TestDocumentTemplateItem):
   document_base_path = os.path.join(getConfiguration().instancehome, 'Extensions')
   template_property = 'template_extension_id_list'
 
+  # Specific to ZODB Extension Component
+  component_module = ExtensionComponent._getDynamicModuleNamespace()
+  component_portal_type = ExtensionComponent.portal_type
+  importFromFilesystem = ExtensionComponent.importFromFilesystem
+  set_template_id_method_name = 'setTemplateExtensionId'
+
+from Products.ERP5Type.Core.TestComponent import TestComponent
+
 class TestTestTemplateItem(TestDocumentTemplateItem):
   document_title = 'UnitTest'
   document_data = """class UnitTest:
@@ -6894,6 +7445,12 @@ class TestTestTemplateItem(TestDocumentTemplateItem):
     pass"""
   document_base_path = os.path.join(getConfiguration().instancehome, 'tests')
   template_property = 'template_test_id_list'
+
+  # Specific to ZODB Extension Component
+  component_module = TestComponent._getDynamicModuleNamespace()
+  component_portal_type = TestComponent.portal_type
+  importFromFilesystem = TestComponent.importFromFilesystem
+  set_template_id_method_name = 'setTemplateTestId'
 
   def stepAddTestToBusinessTemplate(self, sequence=None, **kw):
     bt = sequence['current_bt']
@@ -6976,6 +7533,18 @@ class TestTestTemplateItem(TestDocumentTemplateItem):
                        '
     sequence_list.addSequenceString(sequence_string)
     sequence_list.play(self)
+
+# XXX-arnau: Skip until ZODB Constraints have been implemented (not
+# expectedFailure because following tests would fail after the ZODB Component
+# has been created)
+TestConstraintTemplateItem.test_BusinessTemplateWithZodbDocument = skip(
+  'Not implemented yet')(TestConstraintTemplateItem.test_BusinessTemplateWithZodbDocument)
+
+TestConstraintTemplateItem.test_BusinessTemplateWithZodbDocumentNonExistingBefore = \
+    skip('Not implemented yet')(TestConstraintTemplateItem.test_BusinessTemplateWithZodbDocumentNonExistingBefore)
+
+TestConstraintTemplateItem.test_BusinessTemplateWithZodbDocumentMigrated = \
+    skip('Not implemented yet')(TestConstraintTemplateItem.test_BusinessTemplateWithZodbDocumentMigrated)
 
 def test_suite():
   suite = unittest.TestSuite()

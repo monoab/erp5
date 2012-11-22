@@ -38,7 +38,6 @@ from AccessControl.SecurityInfo import ModuleSecurityInfo
 from Products.CMFCore.utils import getToolByName
 from Products.PythonScripts.PythonScript import PythonScript
 from Products.ERP5Type.Accessor.Constant import PropertyGetter as ConstantGetter
-from Products.ERP5Type.Base import WorkflowMethod
 from Products.ERP5Type.Cache import transactional_cached
 from Products.ERP5Type.Utils import readLocalDocument, \
                                     writeLocalDocument, \
@@ -260,7 +259,7 @@ def createSkinSelection(skin_tool, skin_name):
   #  - they explictly define a list of
   #    "business_template_registered_skin_selections", and we
   #    are not in this list.
-  #  - they are not registred in the default skin selection
+  #  - they are not registered in the default skin selection
   skin_path = ''
   for skin_folder in skin_tool.objectValues():
     if skin_name in skin_folder.getProperty(
@@ -279,21 +278,15 @@ def createSkinSelection(skin_tool, skin_name):
 def deleteSkinSelection(skin_tool, skin_name):
   # Do not delete default skin
   if skin_tool.getDefaultSkin() != skin_name:
-
-    skin_selection_registered = False
     for skin_folder in skin_tool.objectValues():
       try:
-        skin_selection_list = skin_folder.getProperty(
-               'business_template_registered_skin_selections', ())
-        if skin_name in skin_selection_list:
-          skin_selection_registered = True
+        if skin_name in skin_folder.getProperty(
+               'business_template_registered_skin_selections', ()):
           break
       except AttributeError:
         pass
-
-    if (not skin_selection_registered):
-      skin_tool.manage_skinLayers(chosen=[skin_name], 
-                                  del_skin=1)
+    else:
+      skin_tool.manage_skinLayers(chosen=[skin_name], del_skin=1)
       skin_tool.getPortalObject().changeSkin(None)
 
 def unregisterSkinFolderId(skin_tool, skin_folder_id, skin_selection_list):
@@ -552,7 +545,7 @@ class BaseTemplateItem(Implicit, Persistent):
     classname = klass.__name__
 
     attr_set = set(('_dav_writelocks', '_filepath', '_owner', 'last_id', 'uid',
-                    '__ac_local_roles__'))
+                    '__ac_local_roles__', '__ac_local_roles_group_id_dict__'))
     if export:
       if not keep_workflow_history:
         attr_set.add('workflow_history')
@@ -999,7 +992,7 @@ class ObjectTemplateItem(BaseTemplateItem):
           old_obj = container._getOb(object_id, None)
           object_existed = old_obj is not None
           if object_existed:
-            if context.isKeepObject(path):
+            if context.isKeepObject(path) and force:
               # do nothing if the object is specified in keep list in
               # force mode.
               continue
@@ -1135,7 +1128,8 @@ class ObjectTemplateItem(BaseTemplateItem):
               container._mapTransform(obj)
           elif obj.meta_type in ('ERP5 Ram Cache',
                                  'ERP5 Distributed Ram Cache',):
-            assert container.meta_type == 'ERP5 Cache Factory'
+            assert container.meta_type in ('ERP5 Cache Factory',
+                                           'ERP5 Cache Bag')
             container.getParentValue().updateCache()
           elif (container.meta_type == 'CMF Skins Tool') and \
               (old_obj is not None):
@@ -1609,6 +1603,14 @@ class SkinTemplateItem(ObjectTemplateItem):
         registerSkinFolder(skin_tool, folder)
 
 class RegisteredSkinSelectionTemplateItem(BaseTemplateItem):
+  # BUG: Let's suppose old BT defines
+  #         some_skin | Skin1
+  #         some_skin | Skin2
+  #      and new BT has:
+  #         some_skin | Skin1
+  #      Because 'some_skin' is still defined, it will be updated (actually
+  #      'install') and not removed ('uninstall'). But we don't compare with
+  #      old BT so we don't know we must unregister Skin2.
 
   def build(self, context, **kw):
     portal = context.getPortalObject()
@@ -1700,44 +1702,30 @@ class RegisteredSkinSelectionTemplateItem(BaseTemplateItem):
   def uninstall(self, context, **kw):
     portal = context.getPortalObject()
     skin_tool = getToolByName(portal, 'portal_skins')
-
-    object_path = kw.get('object_path', None)
-    if object_path is not None:
-      object_keys = [object_path]
-    else:
-      object_keys = self._objects.keys()
-
-    for skin_folder_id in object_keys:
-      current_selection_list = []
-      skin_folder = skin_tool.get(skin_folder_id, None)
-      if skin_folder is not None:
-        current_selection_list = skin_folder.getProperty(
-          'business_template_registered_skin_selections', [])
-      current_selection_set = set(current_selection_list)
-
+    object_path = kw.get('object_path')
+    for skin_folder_id in (object_path,) if object_path else self._objects:
       skin_selection_list = self._objects[skin_folder_id]
       if isinstance(skin_selection_list, str):
         skin_selection_list = skin_selection_list.replace(',', ' ').split(' ')
-      for skin_selection in skin_selection_list:
-        current_selection_set.discard(skin_selection)
-
-      current_selection_list = list(current_selection_set)
-      if current_selection_list:
-        skin_folder._updateProperty(
+      skin_folder = skin_tool.get(skin_folder_id)
+      if skin_folder is not None:
+        current_selection_set = set(skin_folder.getProperty(
+          'business_template_registered_skin_selections', ()))
+        current_selection_set.difference_update(skin_selection_list)
+        if current_selection_set:
+          skin_folder._updateProperty(
             'business_template_registered_skin_selections',
-            current_selection_list)
-
-        # Unregister skin folder from skin selection
-        unregisterSkinFolderId(skin_tool, skin_folder_id, skin_selection_list)
-      else:
-        # Delete all skin selection
-        for skin_selection in skin_selection_list:
-          deleteSkinSelection(skin_tool, skin_selection)
-        if skin_folder is not None:
-          delattr(skin_folder, 'business_template_registered_skin_selections')
-          # Register to all other skin selection
-          registerSkinFolder(skin_tool, skin_folder)
-
+            list(current_selection_set))
+          # Unregister skin folder from skin selection
+          unregisterSkinFolderId(skin_tool, skin_folder_id, skin_selection_list)
+          continue
+      # Delete all skin selection
+      for skin_selection in skin_selection_list:
+        deleteSkinSelection(skin_tool, skin_selection)
+      if skin_folder is not None:
+        del skin_folder.business_template_registered_skin_selections
+        # Register to all other skin selection
+        registerSkinFolder(skin_tool, skin_folder)
 
   def preinstall(self, context, installed_item, **kw):
     modified_object_list = {}
@@ -1776,6 +1764,116 @@ class RegisteredSkinSelectionTemplateItem(BaseTemplateItem):
       skin_selection_dict[skin_folder_id] = selection_list
     self._objects = skin_selection_dict
 
+class RegisteredVersionPrioritySelectionTemplateItem(BaseTemplateItem):
+  def _fillObjectDictFromArchive(self):
+    for version_priority in self._archive:
+      try:
+        version, priority = version_priority.split('|')
+        priority = float(priority)
+      except ValueError:
+        version = version_priority
+        priority = 0.
+
+      self._objects[version.strip()] = priority
+
+  def build(self, context, **kw):
+    self._fillObjectDictFromArchive()
+
+  def install(self, context, trashbin, **kw):
+    if not self._objects:
+      return
+
+    portal = context.getPortalObject()
+    registered_tuple_list = []
+    for value in portal.getVersionPriorityList():
+      try:
+        version, priority = value.split('|')
+        priority = float(priority)
+      except ValueError:
+        version = value
+        priority = 0.
+
+      registered_tuple_list.append((version.strip(), priority))
+
+    update_dict = kw.get('object_to_update')
+    force = kw.get('force')
+    registered_name_list = set(portal.getVersionPriorityNameList())
+    for new_version, new_priority in self._objects.iteritems():
+      action = update_dict.get(new_version)
+      if (not action or action == 'nothing') and not force:
+        continue
+
+      # Merge version and priority defined on this bt and already registered
+      # version and priority
+      inserted = False
+      index = 0
+      for (version, priority) in registered_tuple_list:
+        if new_version == version:
+          if new_priority == priority:
+            inserted = True
+            break
+          else:
+            del registered_tuple_list[index]
+            continue
+        elif not inserted:
+          if new_priority > priority:
+            registered_tuple_list.insert(index, (new_version, new_priority))
+            inserted = True
+          elif new_priority == priority and new_version >= version:
+            registered_tuple_list.insert(index, (new_version, new_priority))
+            inserted = True
+
+        index += 1
+
+      if not inserted:
+        registered_tuple_list.append((new_version, new_priority))
+
+    portal.setVersionPriorityList(('%s | %s' % (version, priority)
+                                   for version, priority in registered_tuple_list))
+
+  def preinstall(self, context, installed_item, **kw):
+    if context.getTemplateFormatVersion() != 1:
+      return {}
+
+    modified_object_list = {}
+    class_name_prefix = self.__class__.__name__[:-12]
+    for path, new_object in self._objects.iteritems():
+      old_object = installed_item._objects.get(path)
+      if old_object is not None:
+        # Compare object to see it there is any change
+        if new_object != old_object:
+          modified_object_list.update({path : ['Modified', class_name_prefix]})
+      else:
+        modified_object_list.update({path : ['New', class_name_prefix]})
+
+    # Get removed objects
+    for path in installed_item._objects:
+      if path not in self._objects:
+        modified_object_list.update({path : ['Removed', class_name_prefix]})
+
+    return modified_object_list
+
+  def importFile(self, bta, **kw):
+    super(RegisteredVersionPrioritySelectionTemplateItem,
+          self).importFile(bta, **kw)
+
+    self._objects.clear()
+    self._fillObjectDictFromArchive()
+
+  def uninstall(self, context, **kw):
+    object_path = kw.get('object_path')
+    object_list = object_path and (object_path,) or self._objects
+
+    portal = context.getPortalObject()
+    registered_list = list(portal.getVersionPriorityList())
+    index = 0
+    for version in portal.getVersionPriorityNameList():
+      if version in object_list:
+        del registered_list[index]
+      else:
+        index += 1
+
+    portal.setVersionPriorityList(registered_list)
 
 class WorkflowTemplateItem(ObjectTemplateItem):
 
@@ -2950,11 +3048,12 @@ class PortalTypeRolesTemplateItem(BaseTemplateItem):
             k = k[5:]
           elif k == 'role_name':
             k, v = 'id', '; '.join(v)
-          elif k not in ('title', 'description'):
+          elif k not in ('title', 'description', 'categories'):
             k = {'id': 'object_id', # for stable sort
                  'role_base_category': 'base_category',
                  'role_base_category_script_id': 'base_category_script',
-                 'role_category': 'category'}.get(k)
+                 'role_category': 'category',
+                 'local_roles_group_id': 'local_roles_group_id'}.get(k)
             if not k:
               continue
           type_role_dict[k] = v
@@ -2977,7 +3076,7 @@ class PortalTypeRolesTemplateItem(BaseTemplateItem):
           xml_data += "\n   <property id='%s'>%s</property>" % \
               (property, prop_value)
       # multi
-      for property in ('category', 'base_category'):
+      for property in ('categories', 'category', 'base_category'):
         for prop_value in role.get(property, []):
           if isinstance(prop_value, str):
             prop_value = prop_value.decode('utf-8')
@@ -3064,7 +3163,7 @@ class PortalTypeRolesTemplateItem(BaseTemplateItem):
       path = 'portal_types/%s' % roles_path.split('/', 1)[1]
       try:
         obj = p.unrestrictedTraverse(path)
-        setattr(obj, '_roles', [])
+        obj.manage_delObjects([x.id for x in obj.getRoleInformationList()])
       except (NotFound, KeyError):
         pass
 
@@ -3340,7 +3439,9 @@ class ModuleTemplateItem(BaseTemplateItem):
     # Do not remove any module for safety.
     pass
 
-class DocumentTemplateItem(BaseTemplateItem):
+# XXX-arnau: when everything has been migrated to Components, this class
+# should be renamed to DocumentTemplateItem
+class FilesystemDocumentTemplateItem(BaseTemplateItem):
   local_file_reader_name = staticmethod(readLocalDocument)
   local_file_writer_name = staticmethod(writeLocalDocument)
   local_file_importer_name = staticmethod(importLocalDocument)
@@ -3413,7 +3514,7 @@ class DocumentTemplateItem(BaseTemplateItem):
     update_dict = kw.get('object_to_update')
     force = kw.get('force')
     if context.getTemplateFormatVersion() == 1:
-      need_reset = isinstance(self, DocumentTemplateItem)
+      need_reset = isinstance(self, FilesystemDocumentTemplateItem)
       for key in self._objects.keys():
         # to achieve non data migration fresh installation parameters
         # differ from upgrade parameteres, so here the check have to be
@@ -3467,7 +3568,7 @@ class DocumentTemplateItem(BaseTemplateItem):
     else:
       object_keys = self._archive.keys()
     if object_keys:
-      if isinstance(self, DocumentTemplateItem):
+      if isinstance(self, FilesystemDocumentTemplateItem):
         self._resetDynamicModules()
       for key in object_keys:
         self.local_file_remover_name(key)
@@ -3491,80 +3592,73 @@ class DocumentTemplateItem(BaseTemplateItem):
     text = file.read()
     self._objects[file_name[:-3]] = text
 
-class PropertySheetTemplateItem(DocumentTemplateItem,
-                                ObjectTemplateItem):
+class FilesystemToZodbTemplateItem(FilesystemDocumentTemplateItem,
+                                   ObjectTemplateItem):
   """
-  Property Sheets are now stored in ZODB, rather than the filesystem.
-  However, Some Business Template may still have filesystem Property
-  Sheets, which need to be migrated to the ZODB.
-
-  This migration is performed in two steps:
-
-  1/ Specify explicitly in the web user interface that the Property
-     Sheets should be migrated.
-
-  2/ The Property Sheets will all be migrated when installing the
-     Business Template.
-
-  Therefore, this is an all or nothing migration, meaning that only
-  methods of DocumentTemplateItem will be called before the migration
-  has been performed, then ObjectTemplateItem methods afterwards.
+  Abstract class to allow migration from FilesystemDocumentTemplateItem to
+  ObjectTemplateItem, this is useful for migration from filesystem to ZODB for
+  PropertySheets and Components
   """
-  # If set to False, then the migration of Property Sheets will never
-  # be performed, required until the code of ZODB Property Sheets is
-  # stable and completely documented
+  # If set to False, then the migration from filesystem to ZODB will be
+  # performed, meaningful only until the code is stable
   _perform_migration = True
 
-  # Only meaningful for filesystem Property Sheets
-  local_file_reader_name = staticmethod(readLocalPropertySheet)
-  local_file_writer_name = staticmethod(writeLocalPropertySheet)
-  local_file_importer_name = staticmethod(importLocalPropertySheet)
-  local_file_remover_name = staticmethod(removeLocalPropertySheet)
+  _tool_id = None
 
-  def __init__(self, id_list, tool_id='portal_property_sheets', context=None, **kw):
+  @staticmethod
+  def _getZodbObjectId(id):
+    return id
+
+  def __init__(self, id_list, tool_id=None, context=None, **kw):
+    if tool_id is None:
+      tool_id = self._tool_id
+
     tool = None
     if context is not None and len(id_list):
       # XXX looking up a tool early in the install process might
       # cause issues. If it does, we'll have to consider moving this
       # to build()
-      tool = getattr(context.getPortalObject(), tool_id, None)
+      tool = getattr(context.getPortalObject(), self._tool_id, None)
     if tool is not None:
-      existing_property_sheet_set = set(tool.objectIds())
+      existing_set = set(tool.objectIds())
       for i, id in enumerate(id_list):
-        if id in existing_property_sheet_set:
-          # if the property sheet is on ZODB, use it.
-          id_list[i] = "%s/%s" % (tool_id, id)
+        if id in existing_set:
+          # if the object is on ZODB, use it.
+          id_list[i] = "%s/%s" % (self._tool_id, self._getZodbObjectId(id))
 
     BaseTemplateItem.__init__(self, id_list, **kw)
 
-  @staticmethod
-  def _is_already_migrated(object_key_list):
+  def _is_already_migrated(self, object_key_list):
     """
-    The Property Sheets have already been migrated if any keys within
-    the given object_key_list (either '_objects.keys()' or
-    '_archive.keys()') contains a key starting by 'portal_property_sheets/'
+    Objects have already been migrated if any keys within the given
+    object_key_list (either '_objects.keys()' or '_archive.keys()') contains a
+    key starting by 'tool_id/'
     """
     return len(object_key_list) != 0 and \
-        object_key_list[0].startswith('portal_property_sheets/')
+        object_key_list[0].startswith(self._tool_id + '/')
 
   def _filesystemCompatibilityWrapper(method_name, object_dict_name):
     """
-    Call ObjectTemplateItem method when the Property Sheets have
-    already been migrated, otherwise fallback on DocumentTemplateItem
-    method for backward-compatibility
+    Call ObjectTemplateItem method when the objects have already been
+    migrated, otherwise fallback on FilesystemDocumentTemplateItem method for
+    backward-compatibility
     """
     def inner(self, *args, **kw):
       if self._is_already_migrated(getattr(self, object_dict_name).keys()):
         result = getattr(ObjectTemplateItem, method_name)(self, *args, **kw)
       else:
-        result = getattr(DocumentTemplateItem, method_name)(self, *args, **kw)
+        result = getattr(FilesystemDocumentTemplateItem,
+                         method_name)(self, *args, **kw)
+
       if method_name == 'preinstall':
         old_result = result.copy()
         for k, v in old_result.iteritems():
-          if not k.startswith('portal_property_sheets/'):
+          # Magical way to have unique path (without duplicating the prefix
+          # neither) in case of not yet migrated property sheets available on
+          # preinstall list
+          if not (k.startswith(self._tool_id + '/') or
+                  k.startswith(self.getTemplateTypeName())):
             result.pop(k)
-            # Magical way to have unique path in case of not yet migrated property
-            # sheets available on preinstall list
             k = self._getKey(k)
           result[k] = v
       return result
@@ -3575,10 +3669,21 @@ class PropertySheetTemplateItem(DocumentTemplateItem,
   preinstall = _filesystemCompatibilityWrapper('preinstall', '_objects')
 
   def _importFile(self, file_name, *args, **kw):
+    """
+    Import file by calling the appropriate base class according to the file
+    name extensions
+    """
     if file_name.endswith('.xml'):
       return ObjectTemplateItem._importFile(self, file_name, *args, **kw)
     else:
-      return DocumentTemplateItem._importFile(self, file_name, *args, **kw)
+      return FilesystemDocumentTemplateItem._importFile(self, file_name,
+                                                        *args, **kw)
+
+  def afterUninstall(self, already_migrated=False):
+    """
+    Hook called after uninstall
+    """
+    pass
 
   def uninstall(self, *args, **kw):
     # Only for uninstall, the path of objects can be given as a
@@ -3589,58 +3694,39 @@ class PropertySheetTemplateItem(DocumentTemplateItem,
     else:
       object_keys = self._archive.keys()
 
-    if self._is_already_migrated(object_keys):
-      return ObjectTemplateItem.uninstall(self, *args, **kw)
+    already_migrated = self._is_already_migrated(object_keys)
+    if already_migrated:
+      ObjectTemplateItem.uninstall(self, *args, **kw)
     else:
-      return DocumentTemplateItem.uninstall(self, *args, **kw)
+      FilesystemDocumentTemplateItem.uninstall(self, *args, **kw)
+
+    self.afterUninstall(already_migrated)
+
+  def remove(self, context, **kw):
+    """
+    Conversion of magically uniqued paths to real ones
+    """
+    remove_object_dict = kw.get('remove_object_dict', {})
+    new_remove_dict = dict()
+    for k,v in remove_object_dict.iteritems():
+      if k.startswith(self.getTemplateTypeName()+'/'):
+        new_remove_dict[self._getPath(k)] = v
+    kw['remove_object_dict'] = new_remove_dict
+    ObjectTemplateItem.remove(self, context, **kw)
 
   @staticmethod
-  def _getFilesystemPropertySheetPath(class_id):
-    """
-    From the given class identifier, return the complete path of the
-    filesystem Property Sheet class. Only meaningful when the Business
-    Template has already been installed previously, otherwise the
-    """
-    from App.config import getConfiguration
-    return os.path.join(getConfiguration().instancehome,
-                        "PropertySheet",
-                        "%s.py" % class_id)
+  def _getFilesystemPath(class_id):
+    raise NotImplementedError
 
   @staticmethod
-  def _migrateFilesystemPropertySheet(property_sheet_tool,
-                                      filesystem_property_sheet_path,
-                                      filesystem_property_sheet_file,
-                                      class_id):
-    """
-    Migration of a filesystem Property Sheet involves loading the
-    class from 'instancehome/PropertySheet/<class_id>', then create
-    the ZODB Property Sheets in portal_property_sheets from its
-    filesystem definition
-    """
-    # The first parameter of 'load_source' is the module name where
-    # the class will be stored, thus don't only use the class name as
-    # it may clash with already loaded module, such as
-    # BusinessTemplate.
-    module = imp.load_source(
-      'Migrate%sFilesystemPropertySheet' % class_id,
-      filesystem_property_sheet_path,
-      filesystem_property_sheet_file)
+  def _migrateFromFilesystem(tool, filesystem_path, filesystem_file, class_id):
+    raise NotImplementedError
 
-    try:
-      klass = getattr(module, class_id)
-    except AttributeError:
-      raise AttributeError("filesystem Property Sheet '%s' should " \
-                           "contain a class with the same name" % \
-                           class_id)
-
-    return PropertySheetDocument.importFromFilesystemDefinition(
-        property_sheet_tool, klass)
-
-  def _migrateAllFilesystemPropertySheets(self,
-                                          context,
-                                          migrate_object_dict,
-                                          object_dict,
-                                          update_parameter_dict):
+  def _migrateAllFromFilesystem(self,
+                                context,
+                                migrate_object_dict,
+                                object_dict,
+                                update_parameter_dict):
     """
     Migrate all Property Sheets from 'migrate_object_dict' and, if
     necessary, remove old references in 'object_dict' too (with format
@@ -3648,10 +3734,9 @@ class PropertySheetTemplateItem(DocumentTemplateItem,
     the latter '_archive'), and finally removing the useless Property
     Sheet on the filesystem
     """
-    # Migrate all the filesystem Property Sheets of the Business
-    # Template if any
-    property_sheet_tool = context.getPortalObject().portal_property_sheets
-    property_sheet_id_set = set(property_sheet_tool.objectIds())
+    # Migrate all the filesystem classes of the Business Template if any
+    tool = getattr(context.getPortalObject(), self._tool_id)
+    id_set = set(tool.objectIds())
 
     # careful, that dictionary will change
     class_id_list = migrate_object_dict.keys()
@@ -3659,48 +3744,46 @@ class PropertySheetTemplateItem(DocumentTemplateItem,
       # If the Property Sheet already exists in ZODB, then skip it,
       # otherwise it should not be needed anymore once the deletion
       # code of the filesystem Property Sheets is enabled
-      if class_id in property_sheet_id_set:
+      if class_id in id_set:
         # XXX a Conduit must be able to merge modifications
         # from FS PropertySheets into ZODB PropertySheets
-        warn('Conflict when migrating Property Sheet %s: ' \
-             'already exists in portal_property_sheets and '\
-             'cannot be updated automatically for now. ' % class_id,
+        warn('Conflict when migrating classes %s: already exists in %s and '\
+               'cannot be updated automatically for now.' % (class_id,
+                                                             self._tool_id),
              UserWarning)
         del migrate_object_dict[class_id]
         if class_id in object_dict:
           del object_dict[class_id]
         continue
 
-      filesystem_property_sheet_path = \
-          self._getFilesystemPropertySheetPath(class_id)
+      filesystem_path = self._getFilesystemPath(class_id)
 
       # A filesystem Property Sheet may already exist in the instance
       # home if the Business Template has been previously installed,
       # otherwise it is created
-      if os.path.exists(filesystem_property_sheet_path):
-        filesystem_property_sheet_file = open(filesystem_property_sheet_path)
+      if os.path.exists(filesystem_path):
+        filesystem_file = open(filesystem_path)
       else:
-        filesystem_property_sheet_file = open(filesystem_property_sheet_path,
-                                              'w+')
-
-        filesystem_property_sheet_file.write(migrate_object_dict[class_id])
-        filesystem_property_sheet_file.seek(0)
+        filesystem_file = open(filesystem_path, 'w+')
+        filesystem_file.write(migrate_object_dict[class_id])
+        filesystem_file.seek(0)
 
       try:
-        new_property_sheet = self._migrateFilesystemPropertySheet(
-          property_sheet_tool,
-          filesystem_property_sheet_path,
-          filesystem_property_sheet_file,
-          class_id)
-
+        migrated_object = self._migrateFromFilesystem(tool,
+                                                      filesystem_path,
+                                                      filesystem_file,
+                                                      class_id).aq_base
       finally:
-        filesystem_property_sheet_file.close()
-        os.remove(filesystem_property_sheet_path)
+        filesystem_file.close()
+
+      # Delete the file only if there was no error encountered during
+      # migration
+      os.remove(filesystem_path)
 
       # Update 'migrate_object_dict' with the new path
-      key = 'portal_property_sheets/%s' % class_id
+      key = '%s/%s' % (self._tool_id, migrated_object.getId())
 
-      migrate_object_dict[key] = new_property_sheet.aq_base
+      migrate_object_dict[key] = migrated_object
       del migrate_object_dict[class_id]
 
       # Remove old reference in 'object_dict' as it does not make
@@ -3713,19 +3796,14 @@ class PropertySheetTemplateItem(DocumentTemplateItem,
       # migrated
       update_parameter_dict[key] = 'migrate'
 
-  def remove(self, context, **kw):
-    """Conversion of magically uniqued paths to real ones"""
-    remove_object_dict = kw.get('remove_object_dict', {})
-    new_remove_dict = dict()
-    for k,v in remove_object_dict.iteritems():
-      if k.startswith(self.getTemplateTypeName()+'/'):
-        new_remove_dict[self._getPath(k)] = v
-    kw['remove_object_dict'] = new_remove_dict
-    ObjectTemplateItem.remove(self, context, **kw)
-
   def install(self, context, **kw):
-    if not self._perform_migration:
-      return DocumentTemplateItem.install(self, context, **kw)
+    """
+    Install Business Template items and perform migration
+    automatically only if the tool is available
+    """
+    if (not self._perform_migration or
+        getattr(context.getPortalObject(), self._tool_id, None) is None):
+      return FilesystemDocumentTemplateItem.install(self, context, **kw)
 
     # With format 0 of Business Template, the objects are stored in
     # '_archive' whereas they are stored in '_objects' with format
@@ -3734,39 +3812,260 @@ class PropertySheetTemplateItem(DocumentTemplateItem,
 
     if bt_format_version == 0 and \
        not self._is_already_migrated(self._archive.keys()):
-      self._migrateAllFilesystemPropertySheets(context,
-                                               self._archive,
-                                               self._objects,
-                                               kw.get('object_to_update'))
+      self._migrateAllFromFilesystem(context,
+                                     self._archive,
+                                     self._objects,
+                                     kw.get('object_to_update'))
     elif bt_format_version == 1 and \
          not self._is_already_migrated(self._objects.keys()):
-      self._migrateAllFilesystemPropertySheets(context,
-                                               self._objects,
-                                               self._archive,
-                                               kw.get('object_to_update'))
+      self._migrateAllFromFilesystem(context,
+                                     self._objects,
+                                     self._archive,
+                                     kw.get('object_to_update'))
 
     return ObjectTemplateItem.install(self, context, **kw)
 
-class ConstraintTemplateItem(DocumentTemplateItem):
+class PropertySheetTemplateItem(FilesystemToZodbTemplateItem):
+  """
+  Property Sheets are now stored in ZODB rather than the filesystem.
+  However, some Business Templates may still have filesystem Property
+  Sheets, which need to be migrated to the ZODB.
+
+  This migration is performed in two steps:
+
+  1/ Specify explicitly in the web user interface that the Property
+     Sheets should be migrated.
+
+  2/ The Property Sheets will all be migrated when installing the
+     Business Template.
+
+  Therefore, this is an all or nothing migration, meaning that only methods of
+  FilesystemDocumentTemplateItem will be called before the migration has been
+  performed, then ObjectTemplateItem methods afterwards.
+  """
+  # Only meaningful for filesystem Property Sheets
+  local_file_reader_name = staticmethod(readLocalPropertySheet)
+  local_file_writer_name = staticmethod(writeLocalPropertySheet)
+  local_file_importer_name = staticmethod(importLocalPropertySheet)
+  local_file_remover_name = staticmethod(removeLocalPropertySheet)
+
+  _tool_id = 'portal_property_sheets'
+
+  @staticmethod
+  def _getFilesystemPath(class_id):
+    """
+    From the given class identifier, return the complete path of the
+    filesystem Property Sheet class. Only meaningful when the Business
+    Template has already been installed previously, otherwise the
+    """
+    from App.config import getConfiguration
+    return os.path.join(getConfiguration().instancehome,
+                        "PropertySheet",
+                        class_id + ".py")
+
+  @staticmethod
+  def _migrateFromFilesystem(tool,
+                             filesystem_path,
+                             filesystem_file,
+                             class_id):
+    """
+    Migration of a filesystem Property Sheet involves loading the
+    class from 'instancehome/PropertySheet/<class_id>', then create
+    the ZODB Property Sheets in portal_property_sheets from its
+    filesystem definition
+    """
+    # The first parameter of 'load_source' is the module name where
+    # the class will be stored, thus don't only use the class name as
+    # it may clash with already loaded module, such as
+    # BusinessTemplate.
+    module = imp.load_source('Migrate%sFilesystemPropertySheet' % class_id,
+                             filesystem_path,
+                             filesystem_file)
+
+    try:
+      klass = getattr(module, class_id)
+    except AttributeError:
+      raise AttributeError("filesystem Property Sheet '%s' should " \
+                           "contain a class with the same name" % \
+                           class_id)
+
+    return PropertySheetDocument.importFromFilesystemDefinition(tool, klass)
+
+class ConstraintTemplateItem(FilesystemDocumentTemplateItem):
   local_file_reader_name = staticmethod(readLocalConstraint)
   local_file_writer_name = staticmethod(writeLocalConstraint)
   local_file_importer_name = staticmethod(importLocalConstraint)
   local_file_remover_name = staticmethod(removeLocalConstraint)
 
+class DocumentTemplateItem(FilesystemToZodbTemplateItem):
+  """
+  Documents are now stored in ZODB rather than on the filesystem. However,
+  some Business Templates may still have filesystem Documents which need to be
+  migrated to the ZODB.
+
+  The migration is performed in two steps:
+
+    1/ Copy the Business Template to be migrated;
+
+    2/ Run the migration script which will update properly the Document IDs in
+       the Business Template.
+
+  Upon import or export, two files will be created:
+
+    - XML file: contains metadata
+    - Python file: contains the source code itself
+
+  This allows to keep Git history and having readable source code instead of
+  being crippled into an XML file
+  """
+  _tool_id = 'portal_components'
+
+  @staticmethod
+  def _getZodbObjectId(id):
+    return 'erp5.component.document.' + id
+
+  @staticmethod
+  def _getFilesystemPath(class_id):
+    from App.config import getConfiguration
+    return os.path.join(getConfiguration().instancehome,
+                        "Document",
+                        class_id + ".py")
+
+  def _importFile(self, file_name, file_obj):
+    """
+    Upon import, only consider XML file for ZODB Components (as the Python
+    source file will be read and set to text_content property on the new
+    object when the XML will be processed) and for backward compatibility,
+    handle non-migrated Document as well
+    """
+    if file_name.endswith('.py'):
+      # If portal_components/XXX.py, then ignore it as it will be handled when
+      # the .xml file will be processed
+      if file_obj.name.rsplit(os.path.sep, 2)[-2] != 'portal_components':
+        FilesystemDocumentTemplateItem._importFile(self, file_name, file_obj)
+    elif file_name.endswith('.xml'):
+      ObjectTemplateItem._importFile(self, file_name, file_obj)
+
+      name = file_name[:-4]
+      obj = self._objects[name]
+      with open(file_obj.name[:-4] + ".py") as f:
+        obj.text_content = f.read()
+
+      # When importing a Business Template, there is no way to determine if it
+      # has been already migrated or not in __init__() when it does not
+      # already exist, therefore BaseTemplateItem.__init__() is called which
+      # does not set _archive with portal_components/ like
+      # ObjectTemplateItem.__init__()
+      self._archive[name] = None
+      del self._archive[name[len('portal_components/'):]]
+    else:
+      LOG('Business Template', 0, 'Skipping file "%s"' % file_name)
+
+  def export(self, context, bta, **kw):
+    """
+    Export a Document as two files for ZODB Components, one for metadata
+    (.xml) and the other for the Python source code (.py)
+    """
+    path = self.__class__.__name__ + '/'
+    for key, obj in self._objects.iteritems():
+      # Back compatibility with filesystem Documents
+      if isinstance(obj, str):
+        if not key.startswith(path):
+          key = path + key
+        bta.addObject(obj, name=key, ext='.py')
+      else:
+        obj = obj._getCopy(context)
+
+        f = StringIO(obj.text_content)
+        bta.addObject(f, key, path=path, ext='.py')
+
+        del obj.text_content
+        transaction.savepoint(optimistic=True)
+
+        # export object in xml
+        f = StringIO()
+        XMLExportImport.exportXML(obj._p_jar, obj._p_oid, f)
+        bta.addObject(f, key, path=path)
+
+  def getTemplateIdList(self):
+    """
+    Getter for Document property on the Business Template, must be overriden
+    in children classes (e.g. ExtensionDocumentTemplateItem for example)
+    """
+    return self.getTemplateDocumentIdList()
+
+  def build(self, context, **kw):
+    if not self._archive:
+      return
+
+    if not self._is_already_migrated(self._archive.keys()):
+      document_id_list = self.getTemplateIdList()
+      if document_id_list[0] not in getattr(context.getPortalObject(),
+                                            'portal_components', ()):
+        return FilesystemDocumentTemplateItem.build(self, context, **kw)
+      self._archive.clear()
+      for name in document_id_list:
+        self._archive['portal_components/' + name] = None
+
+    return ObjectTemplateItem.build(self, context, **kw)
+
+  def install(self, context, **kw):
+    """
+    In contrary to ZODB Property Sheets, Components are not migrated
+    automatically as the version must be set manually. This should not be an
+    issue as there are not so many Documents in bt5...
+    """
+    object_list = list(self._objects if context.getTemplateFormatVersion() == 1
+                                     else self._archive)
+
+    if self._is_already_migrated(object_list):
+      ObjectTemplateItem.install(self, context, **kw)
+      self.portal_components.reset(force=True, reset_portal_type=True)
+    else:
+      FilesystemDocumentTemplateItem.install(self, context, **kw)
+
+  def afterUninstall(self, already_migrated=False):
+    if already_migrated:
+      self.portal_components.reset(force=True, reset_portal_type=True)
+
 class ExtensionTemplateItem(DocumentTemplateItem):
+  """
+  Extensions are now stored in ZODB rather than on the filesystem. However,
+  some Business Templates may still have filesystem Extensions which need to
+  be migrated to the ZODB.
+  """
+  # Only meaningful for filesystem Extensions
   local_file_reader_name = staticmethod(readLocalExtension)
   local_file_writer_name = staticmethod(writeLocalExtension)
   # Extension needs no import
   local_file_importer_name = None
   local_file_remover_name = staticmethod(removeLocalExtension)
 
+  @staticmethod
+  def _getZodbObjectId(id):
+    return 'erp5.component.extension.' + id
+
+  def getTemplateIdList(self):
+    return self.getTemplateExtensionIdList()
+
 class TestTemplateItem(DocumentTemplateItem):
+  """
+  Live Tests are now stored in ZODB rather than on the filesystem. However,
+  some Business Templates may still have filesystem Live Tests which need to
+  be migrated to the ZODB.
+  """
   local_file_reader_name = staticmethod(readLocalTest)
   local_file_writer_name = staticmethod(writeLocalTest)
   # Test needs no import
   local_file_importer_name = None
   local_file_remover_name = staticmethod(removeLocalTest)
 
+  @staticmethod
+  def _getZodbObjectId(id):
+    return 'erp5.component.test.' + id
+
+  def getTemplateIdList(self):
+    return self.getTemplateTestIdList()
 
 class ProductTemplateItem(BaseTemplateItem):
   # XXX Not implemented yet
@@ -3871,10 +4170,7 @@ class RoleTemplateItem(BaseTemplateItem):
     path = obsolete_key
     bta.addObject(xml_data, name=path)
 
-class CatalogSearchKeyTemplateItem(BaseTemplateItem):
-  key_list_attr = 'sql_catalog_search_keys'
-  key_list_title = 'search_key_list'
-  key_title = 'Search key'
+class CatalogKeyTemplateItemBase(BaseTemplateItem):
 
   def build(self, context, **kw):
     catalog = _getCatalogValue(self)
@@ -3899,6 +4195,10 @@ class CatalogSearchKeyTemplateItem(BaseTemplateItem):
     key_list = [key.text for key in xml.getroot()]
     self._objects[file_name[:-4]] = key_list
 
+  def _getUpdateDictAction(self, update_dict):
+    action = update_dict.get(self.key_list_title, 'nothing')
+    return action
+
   def install(self, context, trashbin, **kw):
     catalog = _getCatalogValue(self)
     if catalog is None:
@@ -3916,16 +4216,16 @@ class CatalogSearchKeyTemplateItem(BaseTemplateItem):
       keys = self._archive.keys()
     update_dict = kw.get('object_to_update')
     force = kw.get('force')
-    # XXX same as related key
-    if update_dict.has_key(self.key_list_title) or force:
-      if not force:
-        action = update_dict[self.key_list_title]
-        if action == 'nothing':
-          return
-      for key in keys:
-        if key not in catalog_key_list:
-          catalog_key_list.append(key)
+    if force or self._getUpdateDictAction(update_dict) != 'nothing':
+      catalog_key_list = self._getUpdatedCatalogKeyList(catalog_key_list, keys)
       setattr(catalog, self.key_list_attr, catalog_key_list)
+
+  def _getUpdatedCatalogKeyList(self, catalog_key_list, new_key_list):
+    catalog_key_list = list(catalog_key_list) # copy
+    for key in new_key_list:
+      if key not in catalog_key_list:
+        catalog_key_list.append(key)
+    return catalog_key_list
 
   def uninstall(self, context, **kw):
     catalog = _getCatalogValue(self)
@@ -3961,103 +4261,108 @@ class CatalogSearchKeyTemplateItem(BaseTemplateItem):
       xml_data = self.generateXml(path=path)
       bta.addObject(xml_data, name=path)
 
-class CatalogResultKeyTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogUniqueKeyTemplateItemBase(CatalogKeyTemplateItemBase):
+  # like CatalogKeyTemplateItemBase, but for keys which use
+  # "key | value" syntax to configure dictionaries.
+  # The keys (part before the pipe) must be unique.
+
+  def _getMapFromKeyList(self, key_list):
+    # in case of duplicates, only the last installed entry will survive
+    return dict(tuple(part.strip() for part in key.split('|', 1))
+                for key in key_list)
+
+  def _getListFromKeyMap(self, key_map):
+    return [" | ".join(item) for item in sorted(key_map.items())]
+
+  def _getUpdatedCatalogKeyList(self, catalog_key_list, new_key_list):
+    # treat key lists as dictionaries, parse and update:
+    catalog_key_map = self._getMapFromKeyList(catalog_key_list)
+    catalog_key_map.update(self._getMapFromKeyList(new_key_list))
+    return self._getListFromKeyMap(catalog_key_map)
+
+class CatalogSearchKeyTemplateItem(CatalogUniqueKeyTemplateItemBase):
+  key_list_attr = 'sql_catalog_search_keys'
+  key_list_title = 'search_key_list'
+  key_title = 'Search key'
+
+class CatalogResultKeyTemplateItem(CatalogKeyTemplateItemBase):
   key_list_attr = 'sql_search_result_keys'
   key_list_title = 'result_key_list'
   key_title = 'Result key'
 
-class CatalogRelatedKeyTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogRelatedKeyTemplateItem(CatalogUniqueKeyTemplateItemBase):
   key_list_attr = 'sql_catalog_related_keys'
   key_list_title = 'related_key_list'
   key_title = 'Related key'
 
   # override this method to support 'key_list' for backward compatibility.
-  def install(self, context, trashbin, **kw):
-    catalog = _getCatalogValue(self)
-    if catalog is None:
-      LOG('BusinessTemplate', 0, 'no SQL catalog was available')
-      return
+  def _getUpdateDictAction(self, update_dict):
+    action = update_dict.get(self.key_list_title, _MARKER)
+    if action is _MARKER:
+      action = update_dict.get('key_list', 'nothing')
+    return action
 
-    catalog_key_list = list(getattr(catalog, self.key_list_attr, []))
-    if context.getTemplateFormatVersion() == 1:
-      if len(self._objects.keys()) == 0: # needed because of pop()
-        return
-      keys = []
-      for k in self._objects.values().pop(): # because of list of list
-        keys.append(k)
-    else:
-      keys = self._archive.keys()
-    update_dict = kw.get('object_to_update')
-    force = kw.get('force')
-    # XXX must a find a better way to manage related key
-    if update_dict.has_key(self.key_list_title) or update_dict.has_key('key_list') or force:
-      if not force:
-        if update_dict.has_key(self.key_list_title):
-          action = update_dict[self.key_list_title]
-        else: # XXX for backward compatibility
-          action = update_dict['key_list']
-        if action == 'nothing':
-          return
-      for key in keys:
-        if key not in catalog_key_list:
-          catalog_key_list.append(key)
-      setattr(catalog, self.key_list_attr, catalog_key_list)
-
-class CatalogResultTableTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogResultTableTemplateItem(CatalogKeyTemplateItemBase):
   key_list_attr = 'sql_search_tables'
   key_list_title = 'result_table_list'
   key_title = 'Result table'
 
 # keyword
-class CatalogKeywordKeyTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogKeywordKeyTemplateItem(CatalogKeyTemplateItemBase):
   key_list_attr = 'sql_catalog_keyword_search_keys'
   key_list_title = 'keyword_key_list'
   key_title = 'Keyword key'
 
 # datetime
-class CatalogDateTimeKeyTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogDateTimeKeyTemplateItem(CatalogKeyTemplateItemBase):
   key_list_attr = 'sql_catalog_datetime_search_keys'
   key_list_title = 'datetime_key_list'
   key_title = 'DateTime key'
 
 # full text
-class CatalogFullTextKeyTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogFullTextKeyTemplateItem(CatalogKeyTemplateItemBase):
   key_list_attr = 'sql_catalog_full_text_search_keys'
   key_list_title = 'full_text_key_list'
   key_title = 'Fulltext key'
 
 # request
-class CatalogRequestKeyTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogRequestKeyTemplateItem(CatalogKeyTemplateItemBase):
   key_list_attr = 'sql_catalog_request_keys'
   key_list_title = 'request_key_list'
   key_title = 'Request key'
 
 # multivalue
-class CatalogMultivalueKeyTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogMultivalueKeyTemplateItem(CatalogKeyTemplateItemBase):
   key_list_attr = 'sql_catalog_multivalue_keys'
   key_list_title = 'multivalue_key_list'
   key_title = 'Multivalue key'
 
 # topic
-class CatalogTopicKeyTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogTopicKeyTemplateItem(CatalogKeyTemplateItemBase):
   key_list_attr = 'sql_catalog_topic_search_keys'
   key_list_title = 'topic_key_list'
   key_title = 'Topic key'
 
-class CatalogScriptableKeyTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogScriptableKeyTemplateItem(CatalogUniqueKeyTemplateItemBase):
   key_list_attr = 'sql_catalog_scriptable_keys'
   key_list_title = 'scriptable_key_list'
   key_title = 'Scriptable key'
 
-class CatalogRoleKeyTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogRoleKeyTemplateItem(CatalogUniqueKeyTemplateItemBase):
   key_list_attr = 'sql_catalog_role_keys'
   key_list_title = 'role_key_list'
   key_title = 'Role key'
 
-class CatalogLocalRoleKeyTemplateItem(CatalogSearchKeyTemplateItem):
+class CatalogLocalRoleKeyTemplateItem(CatalogUniqueKeyTemplateItemBase):
   key_list_attr = 'sql_catalog_local_role_keys'
   key_list_title = 'local_role_key_list'
   key_title = 'LocalRole key'
+
+class CatalogSecurityUidColumnTemplateItem(CatalogSearchKeyTemplateItem):
+  key_list_attr = 'sql_catalog_security_uid_columns'
+  key_list_title = 'security_uid_column_list'
+  key_title = 'Security Uid Columns'
+
 
 class MessageTranslationTemplateItem(BaseTemplateItem):
 
@@ -4231,13 +4536,27 @@ class LocalRolesTemplateItem(BaseTemplateItem):
       obj = p.unrestrictedTraverse(path.split('/', 1)[1])
       local_roles_dict = getattr(obj, '__ac_local_roles__',
                                         {}) or {}
-      self._objects[path] = (local_roles_dict, )
+      local_roles_group_id_dict = getattr(
+        obj, '__ac_local_roles_group_id_dict__', {}) or {}
+      self._objects[path] = (local_roles_dict, local_roles_group_id_dict)
 
   # Function to generate XML Code Manually
   def generateXml(self, path=None):
-    local_roles_dict = self._objects[path][0]
-    # local roles
+    # With local roles groups id, self._object contains for each path a tuple
+    # containing the dict of local roles and the dict of local roles group ids.
+    # Before it was only containing the dict of local roles. This method is
+    # also used on installed business templates to show a diff during
+    # installation, so it might be called on old format objects.
+    if len(self._objects[path]) == 2:
+      # new format
+      local_roles_dict, local_roles_group_id_dict = self._objects[path]
+    else:
+      # old format, before local roles group id
+      local_roles_group_id_dict = dict()
+      local_roles_dict, = self._objects[path]
+
     xml_data = '<local_roles_item>'
+    # local roles
     xml_data += '\n <local_roles>'
     for key in sorted(local_roles_dict):
       xml_data += "\n  <role id='%s'>" %(key,)
@@ -4246,6 +4565,20 @@ class LocalRolesTemplateItem(BaseTemplateItem):
         xml_data += "\n   <item>%s</item>" %(item,)
       xml_data += '\n  </role>'
     xml_data += '\n </local_roles>'
+
+    if local_roles_group_id_dict:
+      # local roles group id dict (not included by default to be stable with
+      # old bts)
+      xml_data += '\n <local_roles_group_id>'
+      for principal, local_roles_group_id_list in sorted(local_roles_group_id_dict.items()):
+        xml_data += "\n  <principal id='%s'>" % escape(principal)
+        for local_roles_group_id in local_roles_group_id_list:
+          for item in local_roles_group_id:
+            xml_data += "\n    <local_roles_group_id>%s</local_roles_group_id>" % \
+                escape(item)
+        xml_data += "\n  </principal>"
+      xml_data += '\n </local_roles_group_id>'
+
     xml_data += '\n</local_roles_item>'
     if isinstance(xml_data, unicode):
       xml_data = xml_data.encode('utf8')
@@ -4270,7 +4603,15 @@ class LocalRolesTemplateItem(BaseTemplateItem):
       id = role.get('id')
       item_type_list = [item.text for item in role]
       local_roles_dict[id] = item_type_list
-    self._objects['local_roles/%s' % (file_name[:-4],)] = (local_roles_dict, )
+
+    # local roles group id
+    local_roles_group_id_dict = {}
+    for principal in xml.findall('//principal'):
+      local_roles_group_id_dict[principal.get('id')] = set([tuple(
+        [group_id.text for group_id in
+            principal.findall('./local_roles_group_id')])])
+    self._objects['local_roles/%s' % (file_name[:-4],)] = (
+      local_roles_dict, local_roles_group_id_dict)
 
   def install(self, context, trashbin, **kw):
     update_dict = kw.get('object_to_update')
@@ -4284,8 +4625,22 @@ class LocalRolesTemplateItem(BaseTemplateItem):
             continue
         path = roles_path.split('/')[1:]
         obj = p.unrestrictedTraverse(path)
-        local_roles_dict = self._objects[roles_path][0]
+        # again we might be installing an business template in format before
+        # existance of local roles group id.
+        if len(self._objects[roles_path]) == 2:
+          local_roles_dict, local_roles_group_id_dict = self._objects[roles_path]
+        else:
+          local_roles_group_id_dict = dict()
+          local_roles_dict, = self._objects[roles_path]
         setattr(obj, '__ac_local_roles__', local_roles_dict)
+        if local_roles_group_id_dict:
+          setattr(obj, '__ac_local_roles_group_id_dict__',
+                  local_roles_group_id_dict)
+          # we try to have __ac_local_roles_group_id_dict__ set only if
+          # it is actually defining something else than default
+        elif getattr(aq_base(obj), '__ac_local_roles_group_id_dict__',
+                    None) is not None:
+          delattr(obj, '__ac_local_roles_group_id_dict__')
         obj.reindexObject()
 
   def uninstall(self, context, object_path=None, **kw):
@@ -4405,6 +4760,7 @@ Business Template is a set of definitions, such as skins, portal types and categ
     #       path and use it with SQLMethods in a skin.
     #    ( and more )
     _item_name_list = [
+      '_registered_version_priority_selection_item',
       '_product_item',
       '_document_item',
       '_property_sheet_item',
@@ -4446,6 +4802,7 @@ Business Template is a set of definitions, such as skins, portal types and categ
       '_catalog_scriptable_key_item',
       '_catalog_role_key_item',
       '_catalog_local_role_key_item',
+      '_catalog_security_uid_column_item',
     ]
 
     def __init__(self, *args, **kw):
@@ -4514,6 +4871,9 @@ Business Template is a set of definitions, such as skins, portal types and categ
       self._registered_skin_selection_item = \
           RegisteredSkinSelectionTemplateItem(
               self.getTemplateRegisteredSkinSelectionList())
+      self._registered_version_priority_selection_item = \
+          RegisteredVersionPrioritySelectionTemplateItem(
+              self.getTemplateRegisteredVersionPrioritySelectionList())
       self._category_item = \
           CategoryTemplateItem(self.getTemplateBaseCategoryList())
       self._catalog_method_item = \
@@ -4605,6 +4965,14 @@ Business Template is a set of definitions, such as skins, portal types and categ
       self._catalog_local_role_key_item = \
           CatalogLocalRoleKeyTemplateItem(
                self.getTemplateCatalogLocalRoleKeyList())
+      try:
+        self._catalog_security_uid_column_item = \
+          CatalogSecurityUidColumnTemplateItem(
+               self.getTemplateCatalogSecurityUidColumnList())
+      except AttributeError:
+        # be backwards compatible with old zope instances which
+        # do not contain recent version of erp5_property_sheets
+        pass
 
     security.declareProtected(Permissions.ManagePortal, 'build')
     def build(self, no_action=0):
@@ -4630,11 +4998,11 @@ Business Template is a set of definitions, such as skins, portal types and categ
       # Build each part
       for item_name in self._item_name_list:
         item = getattr(self, item_name)
+        if item is None:
+          continue
         if self.getBtForDiff():
           item.is_bt_for_diff = 1
         item.build(self)
-
-    build = WorkflowMethod(build)
 
     def publish(self, url, username=None, password=None):
       """
@@ -4844,21 +5212,10 @@ Business Template is a set of definitions, such as skins, portal types and categ
       site.portal_caches.clearAllCache()
 
     security.declareProtected(Permissions.ManagePortal, 'install')
-    def install(self, **kw):
-      """
-        For install based on paramaters provided in **kw
-      """
-      return self._install(**kw)
-
-    install = WorkflowMethod(install)
+    install = _install
 
     security.declareProtected(Permissions.ManagePortal, 'reinstall')
-    def reinstall(self, **kw):
-      """Reinstall Business Template.
-      """
-      return self._install(**kw)
-
-    reinstall = WorkflowMethod(reinstall)
+    reinstall = _install
 
     security.declareProtected(Permissions.ManagePortal, 'trash')
     def trash(self, new_bt, **kw):
@@ -4876,8 +5233,7 @@ Business Template is a set of definitions, such as skins, portal types and categ
                 self,
                 getattr(new_bt, item_name))
 
-    security.declareProtected(Permissions.ManagePortal, 'uninstall')
-    def uninstall(self, **kw):
+    def _uninstall(self, **kw):
       """
         For uninstall based on paramaters provided in **kw
       """
@@ -4891,9 +5247,9 @@ Business Template is a set of definitions, such as skins, portal types and categ
       # template deletes many things from the portal.
       self.getPortalObject().portal_caches.clearAllCache()
 
-    uninstall = WorkflowMethod(uninstall)
+    security.declareProtected(Permissions.ManagePortal, 'uninstall')
+    uninstall = _uninstall
 
-    security.declareProtected(Permissions.ManagePortal, 'clean')
     def _clean(self):
       """
         Clean built information.
@@ -4914,7 +5270,8 @@ Business Template is a set of definitions, such as skins, portal types and categ
       for item_name in self._item_name_list:
         setattr(self, item_name, None)
 
-    clean = WorkflowMethod(_clean)
+    security.declareProtected(Permissions.ManagePortal, 'clean')
+    clean = _clean
 
     security.declareProtected(Permissions.AccessContentsInformation,
                               'getBuildingState')
@@ -5077,6 +5434,18 @@ Business Template is a set of definitions, such as skins, portal types and categ
       """
       return self._getOrderedList('template_registered_skin_selection')
 
+    def getTemplateRegisteredVersionPrioritySelectionList(self):
+      """
+      We have to set this method because we want an
+      ordered list
+      """
+      try:
+        return self._getOrderedList('template_registered_version_priority_selection')
+      # This property may not be defined if erp5_property_sheets has not been
+      # upgraded yet
+      except AttributeError:
+        return ()
+
     def getTemplateModuleIdList(self):
       """
       We have to set this method because we want an
@@ -5189,7 +5558,9 @@ Business Template is a set of definitions, such as skins, portal types and categ
 
       # Export each part
       for item_name in self._item_name_list:
-        getattr(self, item_name).export(context=self, bta=bta)
+        item = getattr(self, item_name, None)
+        if item is not None:
+          item.export(context=self, bta=bta)
 
       return bta.finishCreation()
 
@@ -5219,7 +5590,12 @@ Business Template is a set of definitions, such as skins, portal types and categ
             (SimpleItem.SimpleItem,), {'__module__': module_id}))
 
       for item_name in self._item_name_list:
-        getattr(self, item_name).importFile(bta)
+        item_object = getattr(self, item_name, None)
+        # this check is due to backwards compatability when there can be a
+        # difference between install erp5_property_sheets (esp. BusinessTemplate
+        # property sheet) 
+        if item_object is not None:
+          item_object.importFile(bta)
 
       # Remove temporary modules created above to allow import of real modules
       # (during the installation).
@@ -5327,6 +5703,7 @@ Business Template is a set of definitions, such as skins, portal types and categ
         'CatalogScriptableKey' : '_catalog_scriptable_key_item',
         'CatalogRoleKey' : '_catalog_role_key_item',
         'CatalogLocalRoleKey' : '_catalog_local_role_key_item',
+        'CatalogSecurityUidColumn' : '_catalog_security_uid_column_item',
         }
 
       object_id = REQUEST.object_id
@@ -5389,6 +5766,7 @@ Business Template is a set of definitions, such as skins, portal types and categ
                      '_catalog_scriptable_key_item',
                      '_catalog_role_key_item',
                      '_catalog_local_role_key_item',
+                     '_catalog_security_uid_column_item',
                      '_portal_type_allowed_content_type_item',
                      '_portal_type_hidden_content_type_item',
                      '_portal_type_property_sheet_item',
@@ -5632,6 +6010,55 @@ Business Template is a set of definitions, such as skins, portal types and categ
       setattr(self, 'template_portal_type_property_sheet', ())
       setattr(self, 'template_portal_type_base_category', ())
       return
+
+    security.declareProtected(Permissions.ManagePortal,
+                              'migrateSourceCodeFromFilesystem')
+    def migrateSourceCodeFromFilesystem(self,
+                                        component_portal_type_dict,
+                                        erase_existing=False,
+                                        **kw):
+      """
+      Migrate the given components from filesystem to ZODB by calling the
+      appropriate importFromFilesystem according to the destination Portal
+      Type and then update the Business Template property with migrated IDs
+      """
+      if not component_portal_type_dict:
+        return {}
+
+      component_tool = self.getPortalObject().portal_components
+      failed_import_dict = {}
+      def migrate(component_dict, component_class, template_id_list_method):
+        migrated_id_list = []
+        for reference, version in component_dict.iteritems():
+          try:
+            obj = component_class.importFromFilesystem(component_tool,
+                                                       reference,
+                                                       version,
+                                                       erase_existing)
+          except Exception, e:
+            failed_import_dict[reference] = str(e)
+          else:
+            migrated_id_list.append(obj.getId())
+
+        if migrated_id_list:
+          template_id_list_method(migrated_id_list)
+
+      component_dict = component_portal_type_dict.get('Document Component')
+      if component_dict:
+        from Products.ERP5Type.Core.DocumentComponent import DocumentComponent
+        migrate(component_dict, DocumentComponent, self.setTemplateDocumentIdList)
+
+      component_dict = component_portal_type_dict.get('Extension Component')
+      if component_dict:
+        from Products.ERP5Type.Core.ExtensionComponent import ExtensionComponent
+        migrate(component_dict, ExtensionComponent, self.setTemplateExtensionIdList)
+
+      component_dict = component_portal_type_dict.get('Test Component')
+      if component_dict:
+        from Products.ERP5Type.Core.TestComponent import TestComponent
+        migrate(component_dict, TestComponent, self.setTemplateTestIdList)
+
+      return failed_import_dict
 
 # Block acquisition on all _item_name_list properties by setting
 # a default class value to None

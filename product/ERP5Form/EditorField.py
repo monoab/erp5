@@ -74,7 +74,8 @@ class EditorWidget(Widget.TextAreaWidget):
                                           ('Bespin Editor', 'bespin'),
                                           ('Xinha Editor', 'xinha'),
                                           ('SVG Editor', 'svg_editor'),
-                                          ('Spreadsheet Editor', 'spreadsheet_editor')])
+                                          ('Spreadsheet Editor', 'spreadsheet_editor'),
+                                          ('Ace Editor', 'ace')])
 
   def render(self, field, key, value, REQUEST, render_prefix=None):
     """
@@ -82,16 +83,13 @@ class EditorWidget(Widget.TextAreaWidget):
     """
     here = REQUEST['here']
     text_editor = field.get_value('text_editor')
-    if text_editor == 'text_area':
-      return Widget.TextAreaWidget.render(self, field, key, value, REQUEST)
-    elif text_editor == 'bespin':
+    if text_editor == 'bespin':
       # XXX The usage of bespin editor depends of erp5_bespin bt5
       # installed and still experimental. If erp5_bespin is not installed, it 
       # render standard an standard editor field.
       bespin_support = getattr(here, 'bespin_support',None)
-      if bespin_support is None:
-        return Widget.TextAreaWidget.render(self, field, key, value, REQUEST)
-      return bespin_support.pt_render(
+      if bespin_support is not None:
+        return bespin_support.pt_render(
            extra_context= {
                           'field'      : field,
                           'inputvalue' : value,
@@ -99,9 +97,8 @@ class EditorWidget(Widget.TextAreaWidget):
                         })
     elif text_editor == "xinha":
       xinha_support = getattr(here, 'xinha_support', None)
-      if xinha_support is None:
-        return Widget.TextAreaWidget.render(self, field, key, value, REQUEST)
-      return xinha_support.pt_render(
+      if xinha_support is not None:
+        return xinha_support.pt_render(
            extra_context= {
                           'field'       : field,
                           'field_value' : value,
@@ -109,20 +106,25 @@ class EditorWidget(Widget.TextAreaWidget):
                         })
     elif text_editor == "svg_editor":
       svg_editor_support = getattr(here, 'svg_editor_support', None)
-      if svg_editor_support is None:
-        return Widget.TextAreaWidget.render(self, field, key, value, REQUEST)
-      return svg_editor_support.pt_render()
+      if svg_editor_support is not None:
+        return svg_editor_support.pt_render()
     elif text_editor == "spreadsheet_editor":
       sheet_editor_support = getattr(here, 'sheet_editor_support', None)
-      if sheet_editor_support is None:
-        return Widget.TextAreaWidget.render(self, field, key, value, REQUEST)
-      return sheet_editor_support.pt_render()
-    else:
+      if sheet_editor_support is not None:
+        return sheet_editor_support.pt_render()
+    elif text_editor == 'ace':
+      ace_editor_support = getattr(here, 'ace_editor_support', None)
+      if ace_editor_support is not None:
+        return ace_editor_support.pt_render(extra_context={'field': field,
+                                                         'content': value,
+                                                         'id': key})
+    elif text_editor != 'text_area':
       return here.fckeditor_wysiwyg_support.pt_render(
            extra_context= {
                           'inputvalue' : value,
                           'inputname'  : key
                         })
+    return Widget.TextAreaWidget.render(self, field, key, value, REQUEST)
 
   def render_view(self, field, value, REQUEST=None, render_prefix=None):
     """ 

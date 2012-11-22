@@ -40,7 +40,6 @@
 
 
 import unittest
-import transaction
 
 from Products.ERP5Type.Utils import cartesianProduct
 from copy import copy
@@ -52,7 +51,7 @@ from zLOG import LOG
 from Products.ERP5Type.tests.Sequence import SequenceList
 from Products.ERP5Type.DateUtils import addToDate
 from Products.ERP5.tests.testOrder import TestOrderMixin
-
+from Products.ERP5Type.tests.backportUnittest import expectedFailure
 from Products.ERP5Form.Selection import DomainSelection
 
 class TestInventory(TestOrderMixin, ERP5TypeTestCase):
@@ -75,6 +74,7 @@ class TestInventory(TestOrderMixin, ERP5TypeTestCase):
     """Business Templates required for this test.
     """
     return ('erp5_base', 'erp5_pdm', 'erp5_simulation', 'erp5_trade',
+            'erp5_configurator_standard_trade_template',
             'erp5_apparel', 'erp5_simulation_test')
 
   def setUpPreferences(self):
@@ -93,7 +93,6 @@ class TestInventory(TestOrderMixin, ERP5TypeTestCase):
     preference.setPreferredApparelComponentVariationBaseCategoryList(('variation',))
     if preference.getPreferenceState() == 'disabled':
       preference.enable()
-    transaction.commit()
     self.tic()
 
   def afterSetUp(self, quiet=1, run=run_all_test):
@@ -344,14 +343,13 @@ class TestInventory(TestOrderMixin, ERP5TypeTestCase):
     workflow_tool = self.getPortal().portal_workflow
     workflow_tool.doActionFor(packing_list,
                       "confirm_action", "packing_list_workflow")
-    transaction.commit()
+    self.commit()
     # Apply tic so that the packing list is not in building state
     self.tic() # acceptable here because this is not the job
                # of the test to check if can do all transition
                # without processing messages
     workflow_tool.doActionFor(packing_list,
                       "set_ready_action", "packing_list_workflow")
-    transaction.commit()
     self.tic()
     workflow_tool.doActionFor(packing_list,
                       "start_action", "packing_list_workflow")
@@ -612,7 +610,7 @@ class TestInventory(TestOrderMixin, ERP5TypeTestCase):
 
     bc = category_tool.newContent(portal_type = 'Base Category', id = 'testing_category')
     self.createCategory(bc, ['a', ['aa', 'ab'], 'o', 'z', ['za', 'zb', ['zba', 'zbb'], 'zc'] ])
-    self.stepTic()
+    self.tic()
 
     category_org_list = [ ['testing_category/a/aa', 'testing_category/o'], # 0
                           ['testing_category/a/aa', 'testing_category/z'], # 1
@@ -1234,8 +1232,7 @@ class TestInventory(TestOrderMixin, ERP5TypeTestCase):
       LOG("Transiting '%s' on packing list %s" % (action, transition_step['id']), 0, '')
       workflow_tool.doActionFor(transited_pl, action, packing_list_workflow)
       transited_pl.recursiveImmediateReindexObject() # XXX
-      transaction.commit()
-      self.stepTic()
+      self.tic()
 
       for omit_transit in (0,1):
         values = expected_values[omit_transit]
@@ -1725,9 +1722,7 @@ class TestInventory(TestOrderMixin, ERP5TypeTestCase):
               )
       sequence.edit(packing_list_list = packing_list_list)
 
-    transaction.commit()
-    self.stepTic()
-    transaction.commit()
+    self.tic()
 
     # Then test the next negative date
     next_date = simulation.getNextNegativeInventoryDate(
@@ -1975,6 +1970,52 @@ class TestInventory(TestOrderMixin, ERP5TypeTestCase):
                        '
     sequence_list.addSequenceString(sequence_string)
     sequence_list.play(self)
+
+  @expectedFailure
+  def test_05_CancelInventoryAfterDelivered(self, quiet=0, run=run_all_test):
+    """
+      Make sure that changing workflow state after delivered changes
+      records in stock table.
+    """
+    delivered_state = self.portal.portal_workflow.inventory_workflow.states['delivered']
+    delivered_state.transitions = delivered_state.transitions + ('cancel',)
+
+    self.commit()
+
+    organisation = self.portal.organisation_module.newContent(portal_type='Organisation')
+    product = self.portal.product_module.newContent(portal_type='Product')
+    inventory = self.portal.inventory_module.newContent(portal_type='Inventory')
+    inventory.edit(destination_value=organisation,
+                   stop_date=DateTime('2012/09/12 00:00:00 GMT+9'))
+    line = inventory.newContent(portal_type='Inventory Line')
+    line.setResourceValue(product)
+    line.setQuantity(100)
+
+    self.tic()
+
+    self.assertEqual(
+      self.portal.portal_simulation.getCurrentInventory(
+        node_uid=organisation.getUid(),
+        resource_uid=product.getUid()),
+      0)
+
+    inventory.deliver()
+    self.tic()
+
+    self.assertEqual(
+      self.portal.portal_simulation.getCurrentInventory(
+        node_uid=organisation.getUid(),
+        resource_uid=product.getUid()),
+      100)
+
+    inventory.cancel()
+    self.tic()
+
+    self.assertEqual(
+      self.portal.portal_simulation.getCurrentInventory(
+        node_uid=organisation.getUid(),
+        resource_uid=product.getUid()),
+      0)
 
 def test_suite():
   suite = unittest.TestSuite()

@@ -26,7 +26,6 @@
 #
 ##############################################################################
 
-import transaction
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from AccessControl.SecurityManagement import newSecurityManager
 from Products.ERP5Type.tests.utils import installRealClassTool
@@ -54,7 +53,14 @@ class TestClassTool(ERP5TypeTestCase):
     """
     portal = self.portal
     self.assertNotEqual(None,getattr(portal,'portal_classes',None))
-    transaction.commit()
+    self.commit()
+    # check if web UI works
+    portal_classes = portal.portal_classes
+    portal_classes.manage_viewDocumentList()
+    portal_classes.manage_viewPropertySheetList()
+    portal_classes.manage_viewConstraintList()
+    portal_classes.manage_viewExtensionList()
+    portal_classes.manage_viewTestList()
 
 
   def test_02_CheckFileWriteIsTransactional(self):
@@ -67,11 +73,11 @@ class TestClassTool(ERP5TypeTestCase):
         'files at %s' % getConfiguration().instancehome
     )
     portal_classes.newDocument('Toto')
-    transaction.abort()
+    self.abort()
     self.assertNotEqual(portal_classes.getLocalDocumentList(), ['Toto'])
 
     portal_classes.newDocument('Toto')
-    transaction.commit()
+    self.commit()
     self.assertEqual(portal_classes.getLocalDocumentList(), ['Toto'])
 
 
@@ -108,10 +114,9 @@ class TestClassTool(ERP5TypeTestCase):
     """
     portal = self.getPortal()
     folder = portal.newContent(portal_type='Folder', id='test_folder')
-    transaction.commit()
     self.tic()
     doc_helper = folder.asDocumentationHelper()
-    transaction.commit()
+    self.commit()
     self.assertEquals(0, len(portal.portal_activities.getMessageList()))
 
 

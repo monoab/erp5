@@ -1,5 +1,6 @@
 Account Configurator Item | view
 Accounting Period Configurator Item | view
+Alarm Configurator Item | view
 Business Configuration Module | view
 Business Configuration | view
 Business Process Configurator Item | view
@@ -20,10 +21,13 @@ Purchase Trade Condition Configurator Item | view
 Role Configurator Item | view
 Rule Configurator Item | view
 Sale Trade Condition Configurator Item | view
+Security Category Mapping Configurator Item | view
 Service Configurator Item | view
 Site Property Configurator Item | view
 Solver Configurator Item | view
 Standard BT5 Configurator Item | view
 System Preference Configurator Item | view
 Workflow Security Configurator Item | view
+Workflow | configurator_settings
+Workflow | launch_configuration
 portal_actions | use_configurator

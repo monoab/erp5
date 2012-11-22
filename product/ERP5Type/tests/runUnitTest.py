@@ -13,6 +13,10 @@ import random
 from glob import glob
 
 import backportUnittest
+try:
+  from coverage import coverage
+except ImportError:
+  coverage = None
 
 WIN = os.name == 'nt'
 
@@ -24,6 +28,8 @@ Options:
   -v, --verbose              produce verbose output
   -h, --help                 this help screen
   -p, --profile              print profiling results at the end
+  --coverage=STRING          Use the given path as a coverage config file and
+                             thus enable code coverateg report
   --portal_id=STRING         force id of the portal. Useful when using
                              --data_fs_path to run tests on an existing
                              Data.fs
@@ -132,8 +138,7 @@ Options:
                              Make ZServer listen on given host:port
                              If used with --activity_node=, this can be a
                              comma-separated list of addresses.
-  --neo_storage              Use a volatile NEO storage instead of a DemoStorage
-                             (not compatible with --save or --load).
+  --neo_storage              Use a NEO storage (SQLite) instead of FileStorage.
   --products_path=path,path  Comma-separated list of products paths locations
                              which shall be used in test environment.
   --sys_path=path,path       Comma-separated list of paths which will be used to
@@ -482,6 +487,11 @@ def runUnitTestList(test_list, verbosity=1, debug=0, run_only=None):
     signal.signal(signal.SIGINT, shutdown)
   signal.signal(signal.SIGHUP, shutdown)
 
+  coverage_config = os.environ.get('coverage', None)
+  if coverage_config:
+    coverage_process = coverage(config_file=coverage_config)
+    coverage_process.start()
+
   try:
     save = int(os.environ.get('erp5_save_data_fs', 0))
     load = int(os.environ.get('erp5_load_data_fs', 0))
@@ -542,6 +552,11 @@ def runUnitTestList(test_list, verbosity=1, debug=0, run_only=None):
       if neo_cluster:
         neo_cluster.stop()
 
+  if coverage_config:
+    coverage_process.stop()
+    coverage_process.save()
+    coverage_process.html_report()
+
   if save:
     os.chdir(instance_home)
     if save_mysql:
@@ -591,8 +606,11 @@ def main(argument_list=None):
   sys.argv.extend(old_argv[1:])
   try:
     opts, args = getopt.getopt(sys.argv[1:],
-        "hpvD", ["help", "verbose", "profile", "portal_id=", "data_fs_path=",
+        "hpvD", ["help", "verbose", "profile", "coverage=", "portal_id=",
+        "data_fs_path=",
         "bt5_path=",
+        "firefox_bin=",
+        "xvfb_bin=",
         "recreate_catalog=", "erp5_sql_connection_string=",
         "cmf_activity_sql_connection_string=",
         "extra_sql_connection_string_list=",
@@ -644,6 +662,12 @@ def main(argument_list=None):
       sys.exit()
     elif opt == '-D':
       debug = 1
+      os.environ["erp5_debug_mode"] = str(debug)
+    elif opt == "--coverage":
+      if coverage:
+        os.environ['coverage'] = arg
+      else:
+        _print("WARNING Coverage module not found")
     elif opt in ("-p", "--profile"):
       os.environ['PROFILE_TESTS'] = "1"
       # profiling of setup and teardown is disabled by default, just set
@@ -660,6 +684,10 @@ def main(argument_list=None):
     elif opt ==  '--bt5_path':
       os.environ["erp5_tests_bt5_path"] = \
           os.environ.get("erp5_tests_bt5_path", "") + arg
+    elif opt == '--firefox_bin':
+      os.environ["firefox_bin"] = arg
+    elif opt == '--xvfb_bin':
+      os.environ["xvfb_bin"] = arg
     elif opt == '--recreate_catalog':
       os.environ["erp5_tests_recreate_catalog"] = arg
     elif opt == "--erp5_sql_connection_string":
@@ -741,7 +769,7 @@ def main(argument_list=None):
                            debug=debug,
                            run_only=run_only,
                            )
-  return result and len(result.failures) + len(result.errors) and 1 or 0
+  return result and not result.wasSuccessful()
 
 if __name__ == '__main__':
   # Force stdout to be totally unbuffered.

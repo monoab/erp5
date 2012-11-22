@@ -30,7 +30,6 @@
 """
 
 from pprint import pformat
-import transaction
 from AccessControl.SecurityManagement import newSecurityManager
 from AccessControl.SecurityManagement import getSecurityManager
 from AccessControl.SecurityManagement import setSecurityManager
@@ -123,7 +122,7 @@ class SecurityTestCase(ERP5TypeTestCase):
   def tearDown(self):
     """Clean up for next test.
     """
-    transaction.abort()
+    self.abort()
     self.portal.portal_caches.clearAllCache()
     super(SecurityTestCase, self).tearDown()
 
@@ -184,10 +183,10 @@ class SecurityTestCase(ERP5TypeTestCase):
     try:
       self._loginAsUser(username)
       user = getSecurityManager().getUser()
-      valid_transistion_list =[ai['id'] for ai in
-                            self.workflow_tool.listActions(object=document) if
-                            ai['category'] == 'workflow']
-      if transition in valid_transistion_list:
+      valid_transition_list =[ai['id'] for ai in
+                              self.workflow_tool.listActions(object=document) if
+                              ai['category'] == 'workflow']
+      if transition in valid_transition_list:
         self.fail('User %s can pass %s transition on %s %s. Roles: [%s]' % (
                   username, transition, document.getPortalTypeName(), document,
                   ", ".join(user.getRolesInContext(document))))
@@ -201,10 +200,10 @@ class SecurityTestCase(ERP5TypeTestCase):
     try:
       self._loginAsUser(username)
       user = getSecurityManager().getUser()
-      valid_transistion_list =[ai['id'] for ai in
-                            self.workflow_tool.listActions(object=document) if
-                            ai['category'] == 'workflow']
-      if transition not in valid_transistion_list:
+      valid_transition_list =[ai['id'] for ai in
+                              self.workflow_tool.listActions(object=document) if
+                              ai['category'] == 'workflow']
+      if transition not in valid_transition_list:
         # Build a comprehensive error message
         workflow_states_description = []
         workflow_transitions_description = []

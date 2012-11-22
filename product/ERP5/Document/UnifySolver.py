@@ -95,10 +95,12 @@ class UnifySolver(AcceptSolver):
     Adopt new property value to simulation movements and their deliveries,
     while keeping the original one recorded.
     """
+    portal = self.getPortalObject()
     configuration_dict = self.getConfigurationPropertyDict()
-    portal_type = self.getPortalObject().portal_types.getTypeInfo(self)
-    solved_property_list = configuration_dict.get('tested_property_list',
-                                                  portal_type.getTestedPropertyList())
+    solved_property_list = configuration_dict.get('tested_property_list')
+    if solved_property_list is None:
+      solved_property_list = \
+        portal.portal_types.getTypeInfo(self).getTestedPropertyList()
     # XXX it does not support multiple tested properties.
     solved_property = solved_property_list[0]
     delivery_dict = {}
@@ -114,21 +116,17 @@ class UnifySolver(AcceptSolver):
           solved_property,
       ))
       if activate_kw is not None:
-        movement.setDefaultActivateParameters(
-          activate_kw=activate_kw, **activate_kw)
-      new_value = configuration_dict.get('value')
-      movement.setProperty(solved_property, new_value)
+        movement.setDefaultActivateParameterDict(activate_kw)
+      value = configuration_dict.get('value')
+      movement.setProperty(solved_property, value)
       for simulation_movement in simulation_movement_set:
         if activate_kw is not None:
-          simulation_movement.setDefaultActivateParameters(
-            activate_kw=activate_kw, **activate_kw)
-        value_dict = {solved_property:new_value}
-        for property_id, value in value_dict.iteritems():
-          if not simulation_movement.isPropertyRecorded(property_id):
-            simulation_movement.recordProperty(property_id)
-          simulation_movement.setMappedProperty(property_id, value)
-        simulation_movement.expand(activate_kw=activate_kw)
+          simulation_movement.setDefaultActivateParameterDict(activate_kw)
+        if not simulation_movement.isPropertyRecorded(solved_property):
+          simulation_movement.recordProperty(solved_property)
+        simulation_movement.setMappedProperty(solved_property, value)
+        # XXX: would it be safe to expand by activity ?
+        simulation_movement.expand('immediate')
     # Finish solving
-    if self.getPortalObject().portal_workflow.isTransitionPossible(
-      self, 'succeed'):
+    if portal.portal_workflow.isTransitionPossible(self, 'succeed'):
       self.succeed()

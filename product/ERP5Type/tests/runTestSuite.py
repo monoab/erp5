@@ -1,7 +1,14 @@
 #!/usr/bin/env python2.6
-import argparse, pprint, socket, sys, time, xmlrpclib
-from DummyTaskDistributionTool import DummyTaskDistributionTool
-from ERP5TypeTestSuite import ERP5TypeTestSuite
+import argparse, sys
+from erp5.util import taskdistribution
+
+# XXX: This import is required, just to populate sys.modules['test_suite'].
+# Even if it's not used in this file. Yuck.
+import ERP5TypeTestSuite
+
+def _parsingErrorHandler(data, _):
+  print >> sys.stderr, 'Error parsing data:', repr(data)
+taskdistribution.patchRPCParser(_parsingErrorHandler)
 
 def makeSuite(node_quantity=None, test_suite=None, revision=None,
               db_list=None, **kwargs):
@@ -28,23 +35,6 @@ def makeSuite(node_quantity=None, test_suite=None, revision=None,
                       **kwargs)
   return suite
 
-def safeRpcCall(function, *args):
-  retry = 64
-  xmlrpc_arg_list = []
-  for argument in args:
-    if isinstance(argument, dict):
-      argument = dict([(x, isinstance(y,str) and xmlrpclib.Binary(y) or y) \
-           for (x,y) in argument.iteritems()])
-    xmlrpc_arg_list.append(argument)
-  while True:
-    try:
-      return function(*xmlrpc_arg_list)
-    except (socket.error, xmlrpclib.ProtocolError), e:
-      print >>sys.stderr, e
-      pprint.pprint(args, file(function._Method__name, 'w'))
-      time.sleep(retry)
-      retry += retry >> 1
-
 def main():
   parser = argparse.ArgumentParser(description='Run a test suite.')
   parser.add_argument('--test_suite', help='The test suite name')
@@ -70,38 +60,31 @@ def main():
   parser.add_argument('--persistent_memcached_server_hostname', default=None)
   parser.add_argument('--persistent_memcached_server_port', default=None)
   parser.add_argument('--bt5_path', default=None)
-  
+  parser.add_argument("--xvfb_bin", default=None)
+  parser.add_argument("--firefox_bin", default=None)
+
   args = parser.parse_args()
   if args.bt5_path is not None:
     sys.path[0:0] = args.bt5_path.split(",")
-  if args.master_url is not None:
-    master_url = args.master_url
-    if master_url[-1] != '/':
-      master_url += '/'
-    master = xmlrpclib.ServerProxy("%s%s" %
-              (master_url, 'portal_task_distribution'),
-              allow_none=1)
-    assert master.getProtocolRevision() == 1
-  else:
-    master = DummyTaskDistributionTool()
+  master = taskdistribution.TaskDistributionTool(args.master_url)
   test_suite_title = args.test_suite_title or args.test_suite
   revision = args.revision
   suite = makeSuite(test_suite=args.test_suite,
                     node_quantity=args.node_quantity,
                     revision=revision,
                     db_list=args.db_list,
-                    bt5_path=args.bt5_path)
-  test_result = safeRpcCall(master.createTestResult,
-    args.test_suite, revision, suite.getTestList(),
-    suite.allow_restart, test_suite_title, args.test_node_title,
+                    bt5_path=args.bt5_path,
+                    firefox_bin=args.firefox_bin,
+                    xvfb_bin=args.xvfb_bin)
+  test_result = master.createTestResult(revision, suite.getTestList(),
+    args.test_node_title, suite.allow_restart, test_suite_title,
     args.project_title)
-  if test_result:
-    test_result_path, test_revision = test_result
+  if test_result is not None:
+    assert revision == test_result.revision, (revision, test_result.revision)
     while suite.acquire():
-      test = safeRpcCall(master.startUnitTest, test_result_path,
-                          suite.running.keys())
-      if test:
-        suite.start(test[1], lambda status_dict, __test_path=test[0]:
-          safeRpcCall(master.stopUnitTest, __test_path, status_dict))
+      test = test_result.start(suite.running.keys())
+      if test is not None:
+        suite.start(test.name, lambda status_dict, __test=test:
+          __test.stop(**status_dict))
       elif not suite.running:
         break

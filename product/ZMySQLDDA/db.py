@@ -99,12 +99,9 @@ from MySQLdb.converters import conversions
 from MySQLdb.constants import FIELD_TYPE, CR, ER, CLIENT
 from Shared.DC.ZRDB.TM import TM
 from DateTime import DateTime
-from zLOG import LOG, ERROR, INFO
 from ZODB.POSException import ConflictError
 
-import string, sys
-from string import strip, split, find, upper, rfind
-from time import time
+from string import strip, split, upper, rfind
 from thread import get_ident, allocate_lock
 
 hosed_connection = (
@@ -164,6 +161,10 @@ def int_or_long(s):
     try: return int(s)
     except: return long(s)
 
+def ord_or_None(s):
+    if s is not None:
+        return ord(s)
+
 class ThreadedDeferredDB:
     """
         An experimental MySQL DA which implements deferred execution
@@ -176,6 +177,8 @@ class ThreadedDeferredDB:
     conv[FIELD_TYPE.DATETIME] = DateTime_or_None
     conv[FIELD_TYPE.DATE] = DateTime_or_None
     conv[FIELD_TYPE.DECIMAL] = float
+    conv[FIELD_TYPE.BIT] = ord_or_None
+
     del conv[FIELD_TYPE.TIME]
 
     def __init__(self,connection):
@@ -219,7 +222,11 @@ class ThreadedDeferredDB:
         if '@' in db_host:
             db, host = split(db_host,'@',1)
             kwargs['db'] = db
-            if ':' in host:
+            if host.startswith('['):
+                host, port = split(host[1:], ']', 1)
+                if port.startswith(':'):
+                  kwargs['port'] = int(port[1:])
+            elif ':' in host:
                 host, port = split(host,':',1)
                 kwargs['port'] = int(port)
             kwargs['host'] = host

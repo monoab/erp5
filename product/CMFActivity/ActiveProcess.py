@@ -36,6 +36,7 @@ from BTrees.Length import Length
 from Products.CMFActivity.ActiveObject import INVOKE_ERROR_STATE, \
   VALIDATE_ERROR_STATE
 from random import randrange
+from .ActiveResult import ActiveResult
 
 manage_addActiveProcessForm = DTMLFile('dtml/ActiveProcess_add', globals())
 
@@ -44,7 +45,7 @@ def addActiveProcess(self, id, title='', REQUEST=None, activate_kw=None, **kw):
   """
   o = ActiveProcess(id)
   if activate_kw is not None:
-    o.__of__(self).setDefaultActivateParameters(**activate_kw)
+    o.__of__(self).setDefaultActivateParameterDict(activate_kw)
   o.uid = self.portal_catalog.newUid()
   self._setObject(id, o)
   o = self._getOb(id)
@@ -105,6 +106,10 @@ class ActiveProcess(Base):
         self.result_len.change(1)
         return
     result_list.append(result)
+
+  security.declareProtected(CMFCorePermissions.ManagePortal, 'postActiveResult')
+  def postActiveResult(self, *args, **kw):
+    return self.postResult(ActiveResult(*args, **kw))
 
   security.declareProtected(CMFCorePermissions.ManagePortal, 'getResultList')
   def getResultList(self, **kw):

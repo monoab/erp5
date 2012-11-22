@@ -34,7 +34,6 @@ from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from AccessControl.SecurityManagement import newSecurityManager
 from zLOG import LOG
 from base64 import b64encode, b64decode, b16encode, b16decode
-import transaction
 from ERP5Diff import ERP5Diff
 from lxml import etree
 
@@ -196,7 +195,6 @@ class TestERP5SyncMLMixin(ERP5TypeTestCase):
                                         description=self.description1)
       if id % 10 == 0:
         # each 10 objects commit and reindex
-        transaction.commit()
         self.tic()
     nb_person = len(person_client)
     self.assertEquals(nb_person, number_of_object)
@@ -234,14 +232,11 @@ class TestERP5SyncMLMixin(ERP5TypeTestCase):
     while result['has_response']:
       portal_sync.PubSync(publication.getPath())
       if self.activity_enabled:
-        transaction.commit()
         self.tic()
       result = portal_sync.SubSync(subscription.getPath())
       if self.activity_enabled:
-        transaction.commit()
         self.tic()
       nb_message += 1 + result['has_response']
-    transaction.commit()
     self.tic()
     return nb_message
 
@@ -277,30 +272,23 @@ class TestERP5SyncMLMixin(ERP5TypeTestCase):
       # if we manage well duplicate messages
       portal_sync.PubSync(publication.getPath())
       if self.activity_enabled:
-        transaction.commit()
         self.tic()
       portal_sync.PubSync(publication.getPath())
       if self.activity_enabled:
-        transaction.commit()
         self.tic()
       portal_sync.PubSync(publication.getPath())
       if self.activity_enabled:
-        transaction.commit()
         self.tic()
       result = portal_sync.SubSync(subscription.getPath())
       if self.activity_enabled:
-        transaction.commit()
         self.tic()
       result = portal_sync.SubSync(subscription.getPath())
       if self.activity_enabled:
-        transaction.commit()
         self.tic()
       result = portal_sync.SubSync(subscription.getPath())
       if self.activity_enabled:
-        transaction.commit()
         self.tic()
       nb_message += 1 + result['has_response']
-    transaction.commit()
     self.tic()
     return nb_message
 
@@ -371,11 +359,10 @@ class TestERP5SyncMLMixin(ERP5TypeTestCase):
     subscription1 = portal_sync[self.sub_id1]
     publication.resetSubscriberList()
     subscription1.resetSignatureList()
-    transaction.commit()
     self.tic()
 
   def assertXMLViewIsEqual(self, sub_id, object_pub=None, object_sub=None,
-                                                                  force=False):
+                           force=False, ignore_processing_status_workflow=False):
     """
       Check the equality between two xml objects with gid as id
     """
@@ -401,7 +388,12 @@ class TestERP5SyncMLMixin(ERP5TypeTestCase):
     # revision is based on workflow history, can not be checked
     exclude_property_list = ('edit_workflow',)
     if object_pub.getPortalType() in self.portal.getPortalDocumentTypeList():
-      exclude_property_list += ('revision', 'processing_status_workflow',)
+      exclude_property_list += ('revision',)
+      # XXX: perhaps the tag could be added (insert-after or remove
+      # for example) to check more precisely what property to ignore
+      # in either the source or destination
+      if ignore_processing_status_workflow:
+        exclude_property_list += ('processing_status_workflow',)
     for update in result:
       select = update.get('select', '')
       new_edit_workflow_entry_xpath = 'xupdate:element/xupdate:attribute'\
@@ -570,7 +562,6 @@ class TestERP5SyncML(TestERP5SyncMLMixin):
                               conduit_module_id='ERP5Conduit',
                               is_activity_enabled=self.activity_enabled)
     publication.validate()
-    transaction.commit()
     self.tic()
 
   def addSubscription1(self):
@@ -593,7 +584,6 @@ class TestERP5SyncML(TestERP5SyncMLMixin):
                               user_id='fab',
                               password='myPassword')
     subscription.validate()
-    transaction.commit()
     self.tic()
 
   def addSubscription2(self):
@@ -616,7 +606,6 @@ class TestERP5SyncML(TestERP5SyncMLMixin):
                               user_id='fab',
                               password='myPassword')
     subscription.validate()
-    transaction.commit()
     self.tic()
 
   def test_05_GetSynchronizationList(self):
@@ -1392,7 +1381,6 @@ return [context[%r]]
                               user_id='fab',
                               password='myPassword')
 
-    transaction.commit()
     self.tic()
     self.assertTrue(subscription.isOneWayFromServer())
 
@@ -1484,7 +1472,6 @@ return [context[%r]]
                               user_id='fab',
                               password='myPassword')
 
-    transaction.commit()
     self.tic()
 
   def test_OneWayFromClient(self):

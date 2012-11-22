@@ -16,7 +16,6 @@
                 <string>list_method</string>
                 <string>page_template</string>
                 <string>portal_types</string>
-                <string>selection_name</string>
                 <string>sort</string>
                 <string>title</string>
                 <string>url_columns</string>
@@ -136,10 +135,6 @@
                     </value>
                 </item>
                 <item>
-                    <key> <string>selection_name</string> </key>
-                    <value> <string>discussion_post_selection1</string> </value>
-                </item>
-                <item>
                     <key> <string>sort</string> </key>
                     <value>
                       <list>
@@ -183,7 +178,7 @@
       <dictionary>
         <item>
             <key> <string>method_name</string> </key>
-            <value> <string>searchFolder</string> </value>
+            <value> <string>DiscussionThread_getDiscussionPostList</string> </value>
         </item>
       </dictionary>
     </pickle>

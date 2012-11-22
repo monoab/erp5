@@ -28,9 +28,9 @@
 ##############################################################################
 
 import unittest
-import transaction
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from Products.ERP5OOo.tests.TestFormPrintoutMixin import TestFormPrintoutMixin
+from Products.ERP5Type.tests.backportUnittest import expectedFailure
 from Products.ERP5OOo.OOoUtils import OOoBuilder
 from Products.ERP5OOo.tests.utils import Validator
 from Products.ERP5Type.tests.utils import FileUpload
@@ -39,6 +39,15 @@ from lxml import etree
 import os
 
 class TestFormPrintoutAsODG(TestFormPrintoutMixin):
+  """
+    XXX-Tatuya:
+    Currently following _validate() methods are failing because LibreOffice 3.4
+    itself outputs 'xmlns:graphics' element which is incosistent with the scheme.
+    Thus I comment out these validation for now so that we run the other parts
+    of the tests. This could be better than to mark them expectedFailure,
+    in the aspect of these tests's importance of existence.
+  """
+
   run_all_test = 1
 
   def getTitle(self):
@@ -52,7 +61,7 @@ class TestFormPrintoutAsODG(TestFormPrintoutMixin):
     self.setSystemPreference()
     # XML validator
     v12schema_url = os.path.join(os.path.dirname(__file__),
-                                 'OpenDocument-schema-v1.2-draft9.rng')
+                                 'OpenDocument-v1.2-os-schema.rng')
     self.validator = Validator(schema_url=v12schema_url)
 
     foo_file_path = os.path.join(os.path.dirname(__file__),
@@ -87,7 +96,6 @@ class TestFormPrintoutAsODG(TestFormPrintoutMixin):
       test1.newContent("foo_1", title='Foo Line 1', portal_type='Foo Line')
     if test1._getOb("foo_2", None) is None:
       test1.newContent("foo_2", title='Foo Line 2', portal_type='Foo Line')
-    transaction.commit()
     self.tic()
 
   def getStyleDictFromFieldName(self, content_xml, field_id):
@@ -104,6 +112,7 @@ class TestFormPrintoutAsODG(TestFormPrintoutMixin):
         style_dict.setdefault(descendant.tag, {}).update(descendant.attrib)
     return style_dict
 
+  # see comment at top
   def test_01_TextField(self):
     """
     mapping a field to textbox
@@ -114,7 +123,6 @@ class TestFormPrintoutAsODG(TestFormPrintoutMixin):
       foo_module.newContent(id='test1', portal_type='Foo')
     test1 =  foo_module.test1
     test1.setTitle('Foo title!')
-    transaction.commit()
     self.tic()
 
     style_dict = {'{urn:oasis:names:tc:opendocument:xmlns:text:1.0}span':
@@ -217,6 +225,7 @@ class TestFormPrintoutAsODG(TestFormPrintoutMixin):
     builder = OOoBuilder(odf_document)
     content_xml = builder.extract("content.xml")
     self.assertTrue(content_xml.find("Français test2") > 0)
+    # leave _validate() here not to forget the validation failure
     self._validate(odf_document)
 
   def test_02_TextFieldWithMultiLines(self):
@@ -234,7 +243,6 @@ class TestFormPrintoutAsODG(TestFormPrintoutMixin):
       foo_module.newContent(id='test1', portal_type='Foo')
     test1 =  foo_module.test1
     test1.setDescription('A text a bit more longer\n\nWith a newline !')
-    transaction.commit()
     self.tic()
 
     style_dict = {'{urn:oasis:names:tc:opendocument:xmlns:text:1.0}line-break': {},
@@ -361,7 +369,6 @@ class TestFormPrintoutAsODG(TestFormPrintoutMixin):
       foo_module.newContent(id='test1', portal_type='Foo')
     test1 =  foo_module.test1
     test1.setTitle('Foo title!')
-    transaction.commit()
     self.tic()
 
     style_dict = {'{urn:oasis:names:tc:opendocument:xmlns:text:1.0}span':

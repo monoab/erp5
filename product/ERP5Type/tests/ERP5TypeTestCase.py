@@ -19,6 +19,7 @@ import sys
 import time
 import traceback
 import urllib
+import ConfigParser
 from cStringIO import StringIO
 from cPickle import dumps
 from glob import glob
@@ -26,6 +27,7 @@ from hashlib import md5
 from warnings import warn
 from ExtensionClass import pmc_init_of
 from ZTUtils import make_query
+from DateTime import DateTime
 
 # XXX make sure that get_request works.
 import Products.ERP5Type.Utils
@@ -53,13 +55,6 @@ Globals.get_request = get_request
 
 from zope.site.hooks import setSite
 
-try:
-  import itools.zope
-  itools.zope.get_context = get_context
-except ImportError:
-  pass
-
-import transaction
 from Testing import ZopeTestCase
 from Testing.ZopeTestCase import PortalTestCase, user_name
 from Products.CMFCore.utils import getToolByName
@@ -75,11 +70,19 @@ install_product_quiet = 1
 # Quiet messages when installing business templates
 install_bt5_quiet = 0
 
+from App.config import getConfiguration
+
+config = getConfiguration()
+instancehome = config.instancehome
+# Make sure we can call manage_debug_threads on a test instance
+if getattr(config, 'product_config', None) is None:
+  config.product_config = {}
+config.product_config['deadlockdebugger'] = {'dump_url':'/manage_debug_threads'}
+
 import OFS.Application
 OFS.Application.import_products()
 
 # Std Zope Products
-ZopeTestCase.installProduct('ExtFile', quiet=install_product_quiet)
 ZopeTestCase.installProduct('Photo', quiet=install_product_quiet)
 ZopeTestCase.installProduct('Formulator', quiet=install_product_quiet)
 ZopeTestCase.installProduct('FCKeditor', quiet=install_product_quiet)
@@ -127,9 +130,10 @@ ZopeTestCase.installProduct('Localizer', quiet=install_product_quiet)
 try:
   # Workaround Localizer >= 1.2 patch that doesn't work with
   # ZopeTestCase REQUESTs (it's the same as iHotFix
-  from Products.Localizer import patches
+  from Products.Localizer import patches, utils
   # revert monkey patches from Localizer
   patches.get_request = get_request
+  utils.get_request = get_request
 except ImportError:
   pass
 
@@ -194,9 +198,6 @@ ZopeTestCase.installProduct('ParsedXML', quiet=install_product_quiet)
 
 # Install everything else which looks like related to ERP5
 from OFS.Application import get_products
-from App.config import getConfiguration
-
-instancehome = getConfiguration().instancehome
 for priority, product_name, index, product_dir in get_products():
   # XXX very heuristic
   if os.path.isdir(os.path.join(product_dir, product_name, 'Document')) \
@@ -264,6 +265,27 @@ def _getPersistentMemcachedServerDict():
   port = os.environ.get('persistent_memcached_server_port', '12121')
   return dict(hostname=hostname, port=port)
 
+def _createTestPromiseConfigurationFile(promise_path):
+  kumofs_url = "memcached://%(hostname)s:%(port)s/" % \
+                             _getVolatileMemcachedServerDict()
+  memcached_url = "memcached://%(hostname)s:%(port)s/" % \
+                             _getPersistentMemcachedServerDict()
+  cloudooo_url = "cloudooo://%(hostname)s:%(port)s/" % \
+                             _getConversionServerDict()
+
+  promise_config = ConfigParser.RawConfigParser()
+  promise_config.add_section('external_service')
+  promise_config.set('external_service', 'cloudooo_url', cloudooo_url)
+  promise_config.set('external_service', 'memcached_url',memcached_url)
+  promise_config.set('external_service', 'kumofs_url', kumofs_url)
+
+  if os.environ.get('TEST_CA_PATH') is not None:
+    promise_config.add_section('portal_certificate_authority')
+    promise_config.set('portal_certificate_authority', 'certificate_authority_path',
+                                           os.environ['TEST_CA_PATH'])
+
+  promise_config.write(open(promise_path, 'w'))
+
 def profile_if_environ(environment_var_name):
     if int(os.environ.get(environment_var_name, 0)):
       def decorator(self, method):
@@ -276,6 +298,21 @@ def profile_if_environ(environment_var_name):
     else:
       # No profiling, return identity decorator
       return lambda self, method: method
+
+# Patch DateTime to allow pinning the notion of "now".
+assert getattr(DateTime, '_original_parse_args', None) is None
+DateTime._original_parse_args = DateTime._parse_args
+
+_pinned_date_time = None
+
+def _parse_args(self, *args, **kw):
+  if _pinned_date_time is not None and (not args or args[0] == None):
+    # simulate fixed "Now"
+    args = (_pinned_date_time,) + args[1:]
+  return self._original_parse_args(*args, **kw)
+
+_parse_args._original = DateTime._original_parse_args
+DateTime._parse_args = _parse_args
 
 class ERP5TypeTestCaseMixin(ProcessingNodeTestCase, PortalTestCase):
     """Mixin class for ERP5 based tests.
@@ -317,6 +354,13 @@ class ERP5TypeTestCaseMixin(ProcessingNodeTestCase, PortalTestCase):
                       'Assignor', 'Author', 'Auditor', 'Associate'], [])
         return PortalTestCase.login(self, user_name)
 
+    def changeSkin(self, skin_name):
+      """
+        Change current Skin
+      """
+      request = self.app.REQUEST
+      self.getPortal().portal_skins.changeSkin(skin_name)
+      request.set('portal_skin', skin_name)
 
     def logout(self):
       PortalTestCase.logout(self)
@@ -348,6 +392,17 @@ class ERP5TypeTestCaseMixin(ProcessingNodeTestCase, PortalTestCase):
       assert cls.__bases__[0] is DummyMailHostMixin
       cls.__bases__ = cls.__bases__[1:]
       pmc_init_of(cls)
+
+    def pinDateTime(self, date_time):
+      # pretend time has stopped at a certain date (i.e. the test runs
+      # infinitely fast), to avoid errors on tests that are started
+      # just before midnight.
+      global _pinned_date_time
+      assert date_time is None or isinstance(date_time, DateTime)
+      _pinned_date_time = date_time
+
+    def unpinDateTime(self):
+      self.pinDateTime(None)
 
     def getDefaultSitePreferenceId(self):
       """Default id, usefull method to override
@@ -509,11 +564,59 @@ class ERP5TypeTestCaseMixin(ProcessingNodeTestCase, PortalTestCase):
            DeprecationWarning)
       return self.createUserAssignment(user, assignment_kw)
 
+    def setupAutomaticBusinessTemplateRepository(self, accept_public=True,
+                              searchable_business_template_list=None):
+     # Try to setup some valid Repository List by reusing ERP5TypeTestCase API.
+     # if accept_public we can accept public repository can be set, otherwise
+     # we let failure happens.
+     if searchable_business_template_list is None:
+       searchable_business_template_list = ["erp5_base"]
+
+     # Assume that the public official repository is a valid repository     
+     public_bt5_repository_list = ['http://www.erp5.org/dists/snapshot/bt5/']
+
+     template_list = []
+     for bt_id in searchable_business_template_list:
+       bt_template_list = self._getBTPathAndIdList([bt_id])
+       if len(bt_template_list):
+         template_list.append(bt_template_list[0])
+     if len(template_list) > 0:
+       bt5_repository_path_list = ["/".join(x[0].split("/")[:-1])
+                                   for x in template_list]
+       if accept_public:
+         try:
+           self.portal.portal_templates.updateRepositoryBusinessTemplateList(
+                  bt5_repository_path_list, None)
+         except (RuntimeError, IOError), e:
+           # If bt5 repository is not a repository use public one.
+           self.portal.portal_templates.updateRepositoryBusinessTemplateList(
+                                   public_bt5_repository_list)
+       else:
+         self.portal.portal_templates.updateRepositoryBusinessTemplateList(
+                  bt5_repository_path_list, None)
+     elif accept_public:
+       self.portal.portal_templates.updateRepositoryBusinessTemplateList(
+                                     public_bt5_repository_list)
+     else:
+       raise ValueError("ERP5 was unable to determinate a valid local " + \
+                        "repository, please check your environment or " + \
+                        "use accept_public as True")
+
     def failIfDifferentSet(self, a, b, msg=""):
       if not msg:
         msg='%r != %r' % (a, b)
       self.assertEquals(set(a), set(b), msg)
     assertSameSet = failIfDifferentSet
+
+    def assertHasAttribute(self, obj, attribute, msg=None):
+      self.failIfEqual(None, getattr(obj, attribute, None),
+                       msg or "'%r': no attribute '%s'" % (obj,
+                                                           attribute))
+
+    def failIfHasAttribute(self, obj, attribute, msg=None):
+      self.assertEquals(None, getattr(obj, attribute, None),
+                        msg or "'%r': attribute '%s' present" % (obj,
+                                                                 attribute))
 
     def assertWorkflowTransitionFails(self, object, workflow_id, transition_id,
         error_message=None, state_variable='simulation_state'):
@@ -561,15 +664,12 @@ class ERP5TypeTestCaseMixin(ProcessingNodeTestCase, PortalTestCase):
         ipshell = IPython.Shell.IPShellEmbed(())
       ipshell()
 
-    def stepTic(self, **kw):
+    def stepTic(self, sequence):
       """
       The is used to simulate the zope_tic_loop script
       Each time this method is called, it simulates a call to tic
       which invoke activities in the Activity Tool
       """
-      if kw.get('sequence', None) is None:
-        # in case of using not in sequence commit transaction
-        transaction.commit()
       self.tic()
 
     def getPortalObject(self):
@@ -619,7 +719,7 @@ class ERP5TypeTestCaseMixin(ProcessingNodeTestCase, PortalTestCase):
         sm = getSecurityManager()
 
         # Commit the sandbox for good measure
-        transaction.commit()
+        self.commit()
 
         if env is None:
             env = {}
@@ -791,7 +891,7 @@ class ERP5TypeCommandLineTestCase(ERP5TypeTestCaseMixin):
           uninstalled_list.append(bt_title)
       if uninstalled_list:
         getattr(portal, 'ERP5Site_updateTranslationTable', lambda: None)()
-      self.stepTic()
+      self.tic()
       return uninstalled_list
 
     def setUp(self):
@@ -851,6 +951,15 @@ class ERP5TypeCommandLineTestCase(ERP5TypeTestCaseMixin):
       """
       return ()
 
+    def loadPromise(self):
+      """ Create promise configuration file and load it into configuration
+      """
+      promise_path = os.path.join(instancehome, "promise.cfg")
+      ZopeTestCase._print('Adding Promise at %s...\n' % promise_path)
+      _createTestPromiseConfigurationFile(promise_path)
+      config.product_config["/%s" % self.getPortalName()] = \
+         {"promise_path": promise_path}
+
     def _updateConnectionStrings(self):
       """Update connection strings with values passed by the testRunner
       """
@@ -869,6 +978,14 @@ class ERP5TypeCommandLineTestCase(ERP5TypeTestCaseMixin):
       preference._setPreferredOoodocServerAddress(conversion_dict['hostname'])
       preference._setPreferredOoodocServerPortNumber(conversion_dict['port'])
 
+    def _updateMemcachedConfiguration(self):
+      """Update default memcached plugin configuration
+      """
+      portal_memcached = self.portal.portal_memcached
+      connection_dict = _getVolatileMemcachedServerDict()
+      url_string = '%(hostname)s:%(port)s' % connection_dict
+      portal_memcached.default_memcached_plugin.setUrlString(url_string)
+
     def _recreateCatalog(self, quiet=0):
       """Clear activities and catalog and recatalog everything.
       Test runner can set `erp5_tests_recreate_catalog` environnement variable,
@@ -881,9 +998,8 @@ class ERP5TypeCommandLineTestCase(ERP5TypeTestCaseMixin):
           portal = self.getPortal()
           portal.portal_activities.manageClearActivities()
           portal.portal_catalog.manage_catalogClear()
-          transaction.commit()
+          self.commit()
           portal.ERP5Site_reindexAll()
-          transaction.commit()
           self.tic()
           if not quiet:
             ZopeTestCase._print('done (%.3fs)\n' % (time.time() - _start,))
@@ -931,7 +1047,7 @@ class ERP5TypeCommandLineTestCase(ERP5TypeTestCaseMixin):
                    object_to_update=install_kw,
                    update_translation=1)
         # Release locks
-        transaction.commit()
+        self.commit()
         if not quiet:
           ZopeTestCase._print('done (%.3fs)\n' % (time.time() - start))
 
@@ -1005,17 +1121,14 @@ class ERP5TypeCommandLineTestCase(ERP5TypeTestCaseMixin):
               if not quiet:
                 ZopeTestCase._print('done (%.3fs)\n' % (time.time() - _start))
               # Release locks
-              transaction.commit()
+              self.commit()
             self.portal = portal = self.getPortal()
 
             if len(setup_done) == 1: # make sure it is run only once
               self._setUpDummyMailHost()
-              try:
-                from Products import DeadlockDebugger
-              except ImportError:
-                pass
               self.serverhost, self.serverport = self.startZServer(verbose=True)
               self._registerNode(distributing=1, processing=1)
+              self.loadPromise()
 
             self._updateConnectionStrings()
             self._recreateCatalog()
@@ -1023,6 +1136,7 @@ class ERP5TypeCommandLineTestCase(ERP5TypeTestCaseMixin):
                                               light_install=light_install,
                                               quiet=quiet)
             self._updateConversionServerConfiguration()
+            self._updateMemcachedConfiguration()
             # Create a Manager user at the Portal level
             uf = self.getPortal().acl_users
             uf._doAddUser('ERP5TypeTestCase', '', ['Manager', 'Member', 'Assignee',
@@ -1047,7 +1161,7 @@ class ERP5TypeCommandLineTestCase(ERP5TypeTestCaseMixin):
               portal.portal_catalog.manage_hotReindexAll()
 
             portal.portal_types.resetDynamicDocumentsOnceAtTransactionBoundary()
-            transaction.commit()
+            self.commit()
             self.tic(not quiet)
 
             # Log out
@@ -1058,10 +1172,10 @@ class ERP5TypeCommandLineTestCase(ERP5TypeTestCaseMixin):
               ZopeTestCase._print('done (%.3fs)\n' % (time.time()-_start,))
               ZopeTestCase._print('Running Unit tests of %s\n' % title)
           except:
-            transaction.abort()
+            self.abort()
             raise
           else:
-            transaction.commit()
+            self.commit()
             del self.portal, self.app
             ZopeTestCase.close(app)
       except:
@@ -1096,10 +1210,10 @@ class ERP5TypeCommandLineTestCase(ERP5TypeTestCaseMixin):
         else:
           for m in message_list:
             if m.processing_node < -1:
-              transaction.abort()
+              self.abort()
               count = portal_activities.countMessage()
               portal_activities.manageClearActivities(keep=False)
-              transaction.commit()
+              self.commit()
               ZopeTestCase._print(' (dropped %d left-over activity messages) '
                                   % count)
               break

@@ -83,6 +83,7 @@
                       <list>
                         <string>listbox_modification_date</string>
                         <string>listbox_int_index</string>
+                        <string>listbox_visible</string>
                       </list>
                     </value>
                 </item>

@@ -39,6 +39,7 @@ import string
 import pprint
 import re
 import warnings
+from contextlib import contextmanager
 from cStringIO import StringIO
 from xml.dom.minidom import parse
 from xml.sax.saxutils import escape, quoteattr
@@ -79,17 +80,17 @@ try:
 except ImportError:
   psyco = None
 
+@contextmanager
+def noReadOnlyTransactionCache():
+  yield
 try:
-  from Products.ERP5Type.Cache import enableReadOnlyTransactionCache, \
-       disableReadOnlyTransactionCache, caching_instance_method
+  from Products.ERP5Type.Cache import \
+    readOnlyTransactionCache, caching_instance_method
 except ImportError:
   LOG('SQLCatalog', WARNING, 'Count not import caching_instance_method, expect slowness.')
-  def doNothing(context):
-    pass
   def caching_instance_method(*args, **kw):
     return lambda method: method
-  enableReadOnlyTransactionCache = doNothing
-  disableReadOnlyTransactionCache = doNothing
+  readOnlyTransactionCache = noReadOnlyTransactionCache
 
 try:
   from Products.ERP5Type.TransactionalVariable import getTransactionalVariable
@@ -131,6 +132,7 @@ class transactional_cache_decorator:
       return result
     return wrapper
 
+list_type_list = list, tuple, set, frozenset
 try:
   from ZPublisher.HTTPRequest import record
 except ImportError:
@@ -522,6 +524,14 @@ class Catalog(Folder,
                       'a monovalued local role',
       'type': 'lines',
       'mode': 'w' },
+    { 'id': 'sql_catalog_security_uid_columns',
+      'title': 'Security Uid Columns',
+      'description': 'A list of mappings "local_roles_group_id | security_uid_column"'
+                     ' local_roles_group_id will be the name of a local roles'
+                     ' group, and security_uid_column is the corresponding'
+                     ' column in catalog table',
+      'type': 'lines',
+      'mode': 'w' },
     { 'id': 'sql_catalog_table_vote_scripts',
       'title': 'Table vote scripts',
       'description': 'Scripts helping column mapping resolution',
@@ -573,6 +583,7 @@ class Catalog(Folder,
   sql_catalog_scriptable_keys = ()
   sql_catalog_role_keys = ()
   sql_catalog_local_role_keys = ()
+  sql_catalog_security_uid_columns = (' | security_uid',)
   sql_catalog_table_vote_scripts = ()
   sql_catalog_raise_error_on_uid_check = True
 
@@ -623,6 +634,18 @@ class Catalog(Folder,
       role, column = role_key.split('|')
       role_key_dict[role.strip()] = column.strip()
     return role_key_dict.items()
+
+  def getSQLCatalogSecurityUidGroupsColumnsDict(self):
+    """
+    Return a mapping of local_roles_group_id name to the name of the column
+    storing corresponding security_uid.
+    The default mappiny is {'': 'security_uid'}
+    """
+    local_roles_group_id_dict = {}
+    for local_roles_group_id_key in self.sql_catalog_security_uid_columns:
+      local_roles_group_id, column = local_roles_group_id_key.split('|')
+      local_roles_group_id_dict[local_roles_group_id.strip()] = column.strip()
+    return local_roles_group_id_dict
 
   def getSQLCatalogLocalRoleKeysList(self):
     """
@@ -763,61 +786,66 @@ class Catalog(Folder,
     self.subject_set_uid_dict = OIBTree()
     self.subject_set_uid_index = None
 
-  security.declarePrivate('getSecurityUid')
-  def getSecurityUid(self, wrapped_object):
+  security.declarePrivate('getSecurityUidDict')
+  def getSecurityUidDict(self, wrapped_object):
     """
-      Cache a uid for each security permission
-      Return a tuple with a security uid (string) and a new tuple content the
-      roles and users if not exist already.
-
-     With the roles of object, search the security_uid associate in the
-     catalog_innodb:
-      - if the security not exist a security uid is generated with id_tool
-        or security_uid_index property and
-        return the new security_uid and the tuple contains the new roles
-        to add the roles in roles_and_user table of the database.
-      - if the security exist the security uid is returned and the second
-        element is None for not recreate the security in roles_and_user
-        table of the database.
-
-      We try to create a unique security (to reduce number of lines)
-      and to assign security only to root document
+    returns a tuple with a dict of security uid by local group id, and a tuple
+    containing optimised_roles_and_users that might have been created.
     """
-    # Get security information
-    allowed_roles_and_users = tuple(wrapped_object.allowedRolesAndUsers())
-    # Make sure no duplicates
     if getattr(aq_base(self), 'security_uid_dict', None) is None:
       self._clearSecurityCache()
-    elif self.security_uid_dict.has_key(allowed_roles_and_users):
-      return (self.security_uid_dict[allowed_roles_and_users], None)
-    # If the id_tool is there, it is better to use it, it allows
-    # to create many new security uids by the same time
-    # because with this tool we are sure that we will have 2 different
-    # uids if two instances are doing this code in the same time
-    id_tool = getattr(self.getPortalObject(), 'portal_ids', None)
-    if id_tool is not None:
-      default = 1
-      # We must keep compatibility with existing sites
-      previous_security_uid = getattr(self, 'security_uid_index', None)
-      if previous_security_uid is not None:
-        # At some point, it was a Length
-        if isinstance(previous_security_uid, Length):
-          default = previous_security_uid() + 1
+
+    optimised_roles_and_users = []
+    local_roles_group_id_to_security_uid_mapping = {}
+
+    # Get security information
+    security_uid = None
+    for key in wrapped_object.getLocalRolesGroupIdDict().iteritems():
+      local_roles_group_id, allowed_roles_and_users = key
+      allowed_roles_and_users = tuple(sorted(allowed_roles_and_users))
+      if self.security_uid_dict.has_key(key):
+        local_roles_group_id_to_security_uid_mapping[local_roles_group_id] \
+                = self.security_uid_dict[key]
+      elif self.security_uid_dict.has_key(allowed_roles_and_users)\
+           and not local_roles_group_id:
+        # This key is present in security_uid_dict without
+        # local_roles_group_id, it has been inserted before
+        # local_roles_group_id were introduced.
+        local_roles_group_id_to_security_uid_mapping[local_roles_group_id] = \
+          self.security_uid_dict[allowed_roles_and_users]
+      else:
+        if not security_uid:
+          getTransactionalVariable().pop('getSecurityUidDictAndRoleColumnDict',
+                                         None)
+          id_tool = getattr(self.getPortalObject(), 'portal_ids', None)
+          # We must keep compatibility with existing sites
+          security_uid = getattr(self, 'security_uid_index', None)
+          if security_uid is None:
+            security_uid = 0
+          # At some point, it was a Length
+          elif isinstance(security_uid, Length):
+            security_uid = security_uid()
+        # If the id_tool is there, it is better to use it, it allows
+        # to create many new security uids by the same time
+        # because with this tool we are sure that we will have 2 different
+        # uids if two instances are doing this code in the same time
+        security_uid += 1
+        if id_tool is not None:
+          security_uid = int(id_tool.generateNewId(id_generator='uid',
+              id_group='security_uid_index', default=security_uid))
         else:
-          default = previous_security_uid
-      security_uid = int(id_tool.generateNewId(id_generator='uid',
-          id_group='security_uid_index', default=default))
-    else:
-      previous_security_uid = getattr(self, 'security_uid_index', None)
-      if previous_security_uid is None:
-        previous_security_uid = 0
-      # At some point, it was a Length
-      if isinstance(previous_security_uid, Length):
-        previous_security_uid = previous_security_uid()
-      security_uid = previous_security_uid + 1
-      self.security_uid_index = security_uid
-    self.security_uid_dict[allowed_roles_and_users] = security_uid
-    return (security_uid, allowed_roles_and_users)
+          self.security_uid_index = security_uid
+
+        self.security_uid_dict[key] = security_uid
+        local_roles_group_id_to_security_uid_mapping[local_roles_group_id]\
+            = security_uid
+
+        # If some optimised_roles_and_users are returned by this method it
+        # means that new entries will have to be added to roles_and_users table.
+        for user in allowed_roles_and_users:
+          optimised_roles_and_users.append((security_uid, local_roles_group_id, user))
+
+    return (local_roles_group_id_to_security_uid_mapping, optimised_roles_and_users)
 
   def getRoleAndSecurityUidList(self):
     """
@@ -826,7 +854,8 @@ class Catalog(Folder,
     """
     result = []
     extend = result.extend
-    for role_list, security_uid in getattr(aq_base(self), 'security_uid_dict', {}).iteritems():
+    for role_list, security_uid in getattr(
+            aq_base(self), 'security_uid_dict', {}).iteritems():
       extend([(role, security_uid) for role in role_list])
     return result
 
@@ -1501,10 +1530,8 @@ class Catalog(Folder,
     econtext = getEngine().getContext()
     argument_cache = {}
 
-    try:
-      if not disable_cache:
-        enableReadOnlyTransactionCache()
-
+    with (noReadOnlyTransactionCache if disable_cache else
+          readOnlyTransactionCache)():
       filter_dict = self.filter_dict
       catalogged_object_list_cache = {}
       for method_name in method_id_list:
@@ -1625,9 +1652,6 @@ class Catalog(Folder,
           LOG('SQLCatalog', WARNING, 'could not catalog objects %s with method %s' % (object_list, method_name),
               error=sys.exc_info())
           raise
-    finally:
-      if not disable_cache:
-        disableReadOnlyTransactionCache()
 
   if psyco is not None:
     psyco.bind(_catalogObjectList)
@@ -2022,12 +2046,13 @@ class Catalog(Folder,
     return self.getColumnSearchKey(column)[0] is not None
 
   @profiler_decorator
-  def getColumnDefaultSearchKey(self, key):
+  def getColumnDefaultSearchKey(self, key, search_key_name=None):
     """
       Return a SearchKey instance which would ultimately receive the value
       associated with given key.
     """
-    search_key, related_key_definition = self.getColumnSearchKey(key)
+    search_key, related_key_definition = self.getColumnSearchKey(key,
+      search_key_name=search_key_name)
     if search_key is None:
       result = None
     else:
@@ -2065,13 +2090,13 @@ class Catalog(Folder,
     return result
 
   @profiler_decorator
-  def _buildQueryFromAbstractSyntaxTreeNode(self, node, search_key):
+  def _buildQueryFromAbstractSyntaxTreeNode(self, node, search_key, wrap):
     if search_key.dequoteParsedText():
       _dequote = dequote
     else:
       _dequote = lambda x: x
     if node.isLeaf():
-      result = search_key.buildQuery(_dequote(node.getValue()),
+      result = search_key.buildQuery(wrap(_dequote(node.getValue())),
         comparison_operator=node.getComparisonOperator())
     elif node.isColumn():
       result = self.buildQueryFromAbstractSyntaxTreeNode(node.getSubNode(), node.getColumnName())
@@ -2082,9 +2107,9 @@ class Catalog(Folder,
       for subnode in node.getNodeList():
         if subnode.isLeaf():
           value_dict.setdefault(subnode.getComparisonOperator(),
-            []).append(_dequote(subnode.getValue()))
+            []).append(wrap(_dequote(subnode.getValue())))
         else:
-          subquery = self._buildQueryFromAbstractSyntaxTreeNode(subnode, search_key)
+          subquery = self._buildQueryFromAbstractSyntaxTreeNode(subnode, search_key, wrap)
           if subquery is not None:
             append(subquery)
       logical_operator = node.getLogicalOperator()
@@ -2103,7 +2128,7 @@ class Catalog(Folder,
     return result
 
   @profiler_decorator
-  def buildQueryFromAbstractSyntaxTreeNode(self, node, key):
+  def buildQueryFromAbstractSyntaxTreeNode(self, node, key, wrap=lambda x: x):
     """
       Build a query from given Abstract Syntax Tree (AST) node by recursing in
       its childs.
@@ -2132,7 +2157,8 @@ class Catalog(Folder,
       else:
         build_key = search_key.getSearchKey(sql_catalog=self,
           related_key_definition=related_key_definition)
-      result = self._buildQueryFromAbstractSyntaxTreeNode(node, build_key)
+      result = self._buildQueryFromAbstractSyntaxTreeNode(node, build_key,
+        wrap)
       if related_key_definition is not None:
         result = search_key.buildQuery(sql_catalog=self,
           related_key_definition=related_key_definition,
@@ -2173,32 +2199,17 @@ class Catalog(Folder,
         value = dict(value)
       if ignore_empty_string and (
           value == ''
-          or (isinstance(value, (list, tuple)) and len(value) == 0)
+          or (isinstance(value, list_type_list) and not value)
           or (isinstance(value, dict) and (
             'query' not in value
             or value['query'] == ''
-            or (isinstance(value['query'], (list, tuple))
-              and len(value['query']) == 0)))):
+            or (isinstance(value['query'], list_type_list)
+              and not value['query'])))):
         # We have an empty value, do not create a query from it
         empty_value_dict[key] = value
       else:
         script = self.getScriptableKeyScript(key)
-        if isinstance(value, _Query):
-          # Query instance: use as such, ignore key.
-          result = value
-        elif script is not None:
-          result = script(value)
-        elif isinstance(value, basestring):
-          # String: parse using key's default search key.
-          search_key = self.getColumnDefaultSearchKey(key)
-          if search_key is not None:
-            abstract_syntax_tree = self._parseSearchText(search_key, value)
-            if abstract_syntax_tree is None:
-              # Parsing failed, create a query from the bare string.
-              result = self.buildSingleQuery(key, value)
-            else:
-              result = self.buildQueryFromAbstractSyntaxTreeNode(abstract_syntax_tree, key)
-        elif isinstance(value, dict):
+        if isinstance(value, dict):
           # Dictionnary: might contain the search key to use.
           search_key_name = value.get('key')
           # Backward compatibility: former "Keyword" key is now named
@@ -2209,7 +2220,37 @@ class Catalog(Folder,
           # as "RawKey"
           elif search_key_name == 'ExactMatch':
             search_key_name = value['key'] = 'RawKey'
-          result = self.buildSingleQuery(key, value, search_key_name)
+        if isinstance(value, _Query):
+          # Query instance: use as such, ignore key.
+          result = value
+        elif script is not None:
+          result = script(value)
+        elif isinstance(value, (basestring, dict)):
+          # String: parse using key's default search key.
+          raw_value = value
+          if isinstance(value, dict):
+            # De-wrap value for parsing, and re-wrap when building queries.
+            def wrap(x):
+              result = raw_value.copy()
+              result['query'] = x
+              return result
+            value = value['query']
+          else:
+            wrap = lambda x: x
+            search_key_name = None
+          search_key = self.getColumnDefaultSearchKey(key,
+            search_key_name=search_key_name)
+          if search_key is not None:
+            if isinstance(value, basestring):
+              abstract_syntax_tree = self._parseSearchText(search_key, value)
+            else:
+              abstract_syntax_tree = None
+            if abstract_syntax_tree is None:
+              # Parsing failed, create a query from the bare string.
+              result = self.buildSingleQuery(key, raw_value, search_key_name)
+            else:
+              result = self.buildQueryFromAbstractSyntaxTreeNode(
+                abstract_syntax_tree, key, wrap)
         else:
           # Any other type, just create a query. (can be a DateTime, ...)
           result = self.buildSingleQuery(key, value)
@@ -2290,6 +2331,13 @@ class Catalog(Folder,
         select_dict = None
     elif isinstance(select_dict, (list, tuple)):
       select_dict = dict([(x, None) for x in select_dict])
+    # Handle left_join_list
+    left_join_list = kw.pop('left_join_list', ())
+    # Handle implicit_join. It's True by default, as there's a lot of code
+    # in BT5s and elsewhere that calls buildSQLQuery() expecting implicit
+    # join. self._queryResults() defaults it to False for those using
+    # catalog.searchResults(...) or catalog(...) directly.
+    implicit_join = kw.pop('implicit_join', True)
     # Handle order_by_list
     order_by_list = kw.pop('order_by_list', None)
     sort_on = kw.pop('sort_on', None)
@@ -2327,6 +2375,8 @@ class Catalog(Folder,
       order_by_override_list=order_by_override_list,
       group_by_list=group_by_list,
       select_dict=select_dict,
+      left_join_list=left_join_list,
+      implicit_join=implicit_join,
       limit=limit,
       catalog_table_name=query_table,
       extra_column_list=extra_column_list,
@@ -2412,6 +2462,7 @@ class Catalog(Folder,
     """ Returns a list of brains from a set of constraints on variables """
     if build_sql_query_method is None:
       build_sql_query_method = self.buildSQLQuery
+    kw.setdefault('implicit_join', False)
     query = build_sql_query_method(REQUEST=REQUEST, **kw)
     # XXX: decide if this should be made normal
     ENFORCE_SEPARATION = True

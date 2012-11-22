@@ -51,15 +51,22 @@
         <item>
             <key> <string>_body</string> </key>
             <value> <string>"""\n
-  Do actual conversion of Spreadsheet type.\n
+  Do actual conversion of OOo types.\n
 """\n
-context.convert(**{\'format\': \'html\'})\n
-context.Base_preConvert(format, quality, display_list)\n
+portal = context.getPortalObject()\n
+\n
+if context.hasBaseData():\n
+  if quality is None:\n
+    quality = portal.portal_preferences.getPreferredImageQuality()\n
+\n
+  # empty documents do not need pre conversion\n
+  context.activate(serialization_tag=\'pre_convert\').convert(**{\'format\': \'html\'})\n
+  context.activate(serialization_tag=\'pre_convert\').Base_preConvert(format, quality, display_list)\n
 </string> </value>
         </item>
         <item>
             <key> <string>_params</string> </key>
-            <value> <string>format, quality, display_list</string> </value>
+            <value> <string>format, quality=None, display_list=[]</string> </value>
         </item>
         <item>
             <key> <string>_proxy_roles</string> </key>

@@ -41,8 +41,6 @@ class TestCertificateAuthority(ERP5TypeTestCase):
   def afterSetUp(self):
     self.portal.portal_certificate_authority.certificate_authority_path = \
         os.environ['TEST_CA_PATH']
-    self.portal.portal_certificate_authority.openssl_binary = \
-        os.environ['OPENSSL_BINARY']
 
   def getBusinessTemplateList(self):
     return ('erp5_base', 'erp5_certificate_authority')
@@ -52,7 +50,7 @@ class TestCertificateAuthority(ERP5TypeTestCase):
     person = self.portal.person_module.newContent(portal_type='Person',
       reference=login, password=login)
     person.newContent(portal_type='Assignment').open()
-    self.stepTic()
+    self.tic()
     return login
 
   def test_person_request_certificate(self):

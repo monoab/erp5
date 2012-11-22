@@ -27,23 +27,17 @@
 #
 ##############################################################################
 
-import transaction
 from DateTime import DateTime
 from Products.ERP5TioSafe.tests.testPrestashopMixin import testPrestashopMixin
+from Products.ERP5Type.tests.backportUnittest import skip
 
+@skip("must be checked against zope2.12")
 class TestSaleOrderERP5Synchronization(testPrestashopMixin):
   """ This class allows to check different cases of Slae Order's sync. """
 
   def getBusinessTemplateList(self):
-    return testPrestashopMixin.getBusinessTemplateList(self) + ('erp5_accounting',
-                                                                'erp5_invoicing',
-                                                                'erp5_simplified_invoicing',
-                                                                'erp5_simulation',
-                                                                'erp5_simulation_legacy',
-                                                                'erp5_trade_simulation_legacy',
-                                                                'erp5_accounting_simulation_legacy',
-                                                                'erp5_invoicing_simulation_legacy',
-                                                                )
+    return testPrestashopMixin.getBusinessTemplateList(self) + (
+      'erp5_accounting', 'erp5_invoicing', 'erp5_simplified_invoicing')
 
   def afterSetUp(self):
     """ This method is called after the SetUp method. """
@@ -76,7 +70,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_01.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run sync process and check result
@@ -197,7 +190,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_02.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run sync process and check result
@@ -300,7 +292,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_03.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run sync process and check result
@@ -447,7 +438,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_04.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run sync process and check result
@@ -557,7 +547,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_05.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run sync process and check result
@@ -652,7 +641,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_06.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run sync process and check result
@@ -733,7 +721,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_07.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run sync process and check result
@@ -846,7 +833,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_08.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
 
     # Run sync process and check result
@@ -937,7 +923,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
     # Ship the sale packing list
     sale_packing_list.start()
     self.assertEqual(sale_packing_list.getSimulationState(), 'started')
-    transaction.commit()
     self.tic()
     self.assertEqual(len(sale_packing_list.contentValues()), 3) # Two SPL + Payment condition
     self.assertEqual(len(sale_packing_list.contentValues(portal_type='Sale Packing List Line'),), 2)
@@ -997,7 +982,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_01.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
     # Run sync process and check result
     self.assertEqual(len(self.sale_order_module.contentValues()), 0)
@@ -1016,7 +1000,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_09.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
     self.loadSync([
         getattr(self.prestashop, module)
@@ -1038,7 +1021,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_01.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
     # Run sync process and check result
     self.assertEqual(len(self.sale_order_module.contentValues()), 0)
@@ -1057,7 +1039,6 @@ class TestSaleOrderERP5Synchronization(testPrestashopMixin):
         self.connection,
         '%s/dump_sale_order_sync_10.sql' %  self.ps_dump_path,
     )
-    transaction.commit()
     self.tic()
     self.loadSync([
         getattr(self.prestashop, module)

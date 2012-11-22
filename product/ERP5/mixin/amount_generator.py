@@ -289,7 +289,6 @@ class AmountGeneratorMixin:
                                                   if x[:12] != 'base_amount/']))
         if variation_category_list:
           base_application_set.difference_update(variation_category_list)
-          assert len(base_application_set) == 1
         # property_dict may include
         #   resource - VAT service or a Component in MRP
         #              (if unset, the amount will only be used for reporting)
@@ -326,7 +325,8 @@ class AmountGeneratorMixin:
         # Create an Amount object
         amount = newTempAmount(portal,
           # we only want the id to be unique so we pick a random causality
-          causality_value.getRelativeUrl().replace('/', '_'))
+          causality_value.getRelativeUrl().replace('/', '_'),
+          notify_workflow=False)
         amount._setCategoryList(property_dict.pop('category_list', ()))
         if amount.getQuantityUnit():
           del property_dict['quantity_unit']
@@ -356,7 +356,6 @@ class AmountGeneratorMixin:
                                                   if x[:12] != 'base_amount/']))
         if variation_category_list:
           base_contribution_set.difference_update(variation_category_list)
-          assert len(base_contribution_set) == 1
         for base_contribution in base_contribution_set:
           base_amount.contribute(base_contribution, variation_category_list,
                                  quantity)

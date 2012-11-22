@@ -30,7 +30,6 @@
 # TODO: Some tests from this file can be merged into Formulator
 
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
-import transaction
 import unittest
 
 # Initialize ERP5Form Product to load monkey patches
@@ -236,6 +235,17 @@ class TestFloatField(ERP5TypeTestCase):
     self.assertEquals(node.get('{%s}value-type' % NSMAP['office']), 'float')
     self.assertEquals(node.get('{%s}value' % NSMAP['office']), str(1000.0))
 
+  def test_fullwidth_number_conversion(self):
+    self.portal.REQUEST.set('field_test_field', '１2３．４5')
+    self.assertEquals(123.45,
+        self.validator.validate(self.field, 'field_test_field', self.portal.REQUEST))
+
+  def test_fullwidth_minus_number_conversion(self):
+    self.portal.REQUEST.set('field_test_field', '−１2３．４5')
+    self.assertEquals(-123.45,
+        self.validator.validate(self.field, 'field_test_field', self.portal.REQUEST))
+
+
 class TestIntegerField(ERP5TypeTestCase):
   """Tests integer field
   """
@@ -246,6 +256,7 @@ class TestIntegerField(ERP5TypeTestCase):
   def afterSetUp(self):
     self.field = IntegerField('test_field')
     self.widget = self.field.widget
+    self.validator = self.field.validator
 
   def test_render_odt(self):
     self.field.values['default'] = 34
@@ -268,6 +279,16 @@ class TestIntegerField(ERP5TypeTestCase):
     test_value = self.field.render_odg(value=0, as_string=False)\
       .xpath('%s/text()' % ODG_XML_WRAPPING_XPATH, namespaces=NSMAP)[0]
     self.assertEquals('0', test_value)
+
+  def test_fullwidth_number_conversion(self):
+    self.portal.REQUEST.set('field_test_field', '１２３４')
+    self.assertEquals(1234,
+        self.validator.validate(self.field, 'field_test_field', self.portal.REQUEST))
+
+  def test_fullwidth_minus_number_conversion(self):
+    self.portal.REQUEST.set('field_test_field', 'ー１２３４')
+    self.assertEquals(-1234,
+        self.validator.validate(self.field, 'field_test_field', self.portal.REQUEST))
 
 
 class TestStringField(ERP5TypeTestCase):
@@ -315,6 +336,7 @@ class TestDateTimeField(ERP5TypeTestCase):
   def afterSetUp(self):
     self.field = DateTimeField('test_field')
     self.widget = self.field.widget
+    self.validator = self.field.validator
 
   def test_render_odt(self):
     self.field.values['default'] = DateTime('2010/01/01 00:00:01 UTC')
@@ -338,6 +360,16 @@ class TestDateTimeField(ERP5TypeTestCase):
     self.field.values['default'] = None
     node = self.field.render_odt_variable(as_string=False)
     self.assertTrue(node is not None)
+
+  def test_fullwidth_number_conversion(self):
+    self.portal.REQUEST.set('subfield_field_test_field_year', '２０１１')
+    self.portal.REQUEST.set('subfield_field_test_field_month', '１２')
+    self.portal.REQUEST.set('subfield_field_test_field_day', '１５')
+    self.portal.REQUEST.set('subfield_field_test_field_hour', '０２')
+    self.portal.REQUEST.set('subfield_field_test_field_minute', '１８')
+    self.assertEquals(DateTime('2011/12/15 02:18:00'),
+        self.validator.validate(self.field, 'field_test_field', self.portal.REQUEST))
+
 
 class TestTextAreaField(ERP5TypeTestCase):
   """Tests TextArea field
@@ -472,7 +504,6 @@ class TestListField(ERP5TypeTestCase):
     self.field = ListField('test_field')
     self.widget = self.field.widget
     self.createCategories()
-    transaction.commit()
     self.tic()
 
   def createCategories(self):
@@ -853,29 +884,31 @@ class TestFieldValueCache(ERP5TypeTestCase):
       dict(on_memory_field='123').get(key, d)
 
     form = self.root.form
-    form.field = StringField('test_field')
+    def addField(field):
+      form._setObject(field.id, field, set_owner=0, suppress_events=1)
+    addField(StringField('field'))
     form.field._p_oid = makeDummyOid()
     # method field
     form.field.values['external_validator'] = Method('this_is_a_method')
     # on-memory field (not in zodb)
-    form.my_on_memory_field = StringField('my_on_memory_field')
+    addField(StringField('my_on_memory_field'))
     form.my_on_memory_field._p_oid = None
-    form.my_on_memory_tales_field = StringField('my_on_memory_tales_field')
+    addField(StringField('my_on_memory_tales_field'))
     form.my_on_memory_tales_field.manage_tales_xmlrpc({
       'default': 'python: repr(here)'})
     form.my_on_memory_field._p_oid = None
     # proxy field
-    form.proxy_field = ProxyField.ProxyField('test_proxy_field')
+    addField(ProxyField.ProxyField('proxy_field'))
     form.proxy_field._p_oid = makeDummyOid()
     form.proxy_field.values['form_id'] = 'form'
     form.proxy_field.values['field_id'] = 'field'
     # proxy field with tales
-    form.proxy_field_tales = ProxyField.ProxyField('test_proxy_field')
+    addField(ProxyField.ProxyField('proxy_field_tales'))
     form.proxy_field_tales._p_oid = makeDummyOid()
     form.proxy_field_tales.tales['form_id'] = TALESMethod('string:form')
     form.proxy_field_tales.tales['field_id'] = TALESMethod('string:field')
     # datetime field (input style is list)
-    form.datetime_field = DateTimeField('datetime_field')
+    addField(DateTimeField('datetime_field'))
     form.datetime_field._p_oid = makeDummyOid()
     form.datetime_field._edit(dict(input_style='list'))
     for i in form.datetime_field.sub_form.fields.values():

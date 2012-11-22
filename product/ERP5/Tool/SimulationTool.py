@@ -222,7 +222,7 @@ class SimulationTool(BaseTool):
     def _getSimulationStateQuery(self, **kw):
       simulation_state_dict = self._getSimulationStateDict(**kw)
       return self._buildSimulationStateQuery(simulation_state_dict=simulation_state_dict)
-      
+
     def _buildSimulationStateQuery(self, simulation_state_dict, table='stock'):
       input_simulation_state = simulation_state_dict.get(
                                  'input_simulation_state')
@@ -364,7 +364,7 @@ class SimulationTool(BaseTool):
                                     omit_asset_increase=omit_asset_increase,
                                     omit_asset_decrease=omit_asset_decrease)
       return self._buildOmitQuery(query_table=query_table, omit_dict=omit_dict)
-      
+
     def _buildOmitQuery(self, query_table, omit_dict):
       """
       Build a specific query in order to take:
@@ -488,7 +488,7 @@ class SimulationTool(BaseTool):
         related_key_group_by = new_kw.pop('related_key_group_by', [])
         if related_key_group_by:
           group_by.extend(['%s_%s' % (table, x) for x in related_key_group_by])
-        
+
         # group by involving a related key (eg. group_by=['product_line_uid'])
         related_key_dict_passthrough_group_by = new_kw.get(
                 'related_key_dict_passthrough', dict()).pop('group_by', [])
@@ -562,7 +562,7 @@ class SimulationTool(BaseTool):
               column_id = '%s.%s' % (table, column_id)
             new_sort_on.append((column_id, sort_direction))
           new_kw['sort_on'] = tuple(new_sort_on)
-        
+
         # Remove some internal parameters that does not have any meaning for
         # catalog
         new_kw.pop('ignore_group_by', None)
@@ -759,16 +759,16 @@ class SimulationTool(BaseTool):
       related_key_dict.setUIDList(
         'mirror_section_category_strict_membership_uid',
         mirror_section_category_strict_membership)
-      
+
       new_kw['related_key_dict'] = related_key_dict.copy()
       new_kw['related_key_dict_passthrough'] = kw
 
       #variation_category_uid_list = self._generatePropertyUidList(variation_category)
       #if len(variation_category_uid_list) :
       #  new_kw['variationCategory'] = variation_category_uid_list
-      
+
       simulation_dict =  self._getSimulationStateDict(
-                                simulation_state=simulation_state, 
+                                simulation_state=simulation_state,
                                 omit_transit=omit_transit,
                                 input_simulation_state=input_simulation_state,
                                 output_simulation_state=output_simulation_state,
@@ -782,7 +782,7 @@ class SimulationTool(BaseTool):
       new_kw['omit_dict'] = omit_dict
       if reserved_kw is not None:
         if not isinstance(reserved_kw, dict):
-          # Not a dict when taken from URL, so, cast is needed 
+          # Not a dict when taken from URL, so, cast is needed
           # to make pop method available
           reserved_kw = dict(reserved_kw)
         new_reserved_kw = {}
@@ -974,7 +974,7 @@ class SimulationTool(BaseTool):
       section_category -  only take rows in stock table which section_uid is
                           member of section_category
 
-      mirror_section_category - only take rows in stock table which 
+      mirror_section_category - only take rows in stock table which
                                 mirror_section_uid is member of
                                 mirror_section_category
 
@@ -1130,8 +1130,8 @@ class SimulationTool(BaseTool):
       Returns future inventory
       """
       return self.getInventory(simulation_period='Future', **kw)
-    
-    def _getDefaultGroupByParameters(self, ignore_group_by=0, 
+
+    def _getDefaultGroupByParameters(self, ignore_group_by=0,
         group_by_node=0, group_by_mirror_node=0,
         group_by_section=0, group_by_mirror_section=0,
         group_by_payment=0, group_by_project=0, group_by_funding=0,
@@ -1186,11 +1186,11 @@ class SimulationTool(BaseTool):
                               'getInventoryList')
     def getInventoryList(self, src__=0, optimisation__=True,
                          ignore_variation=0, standardise=0,
-                         omit_simulation=0, 
+                         omit_simulation=0,
                          only_accountable=True,
                          default_stock_table='stock',
                          selection_domain=None, selection_report=None,
-                         statistic=0, inventory_list=1, 
+                         statistic=0, inventory_list=1,
                          precision=None, connection_id=None,
                          **kw):
       """
@@ -1225,7 +1225,7 @@ class SimulationTool(BaseTool):
          - Querying multiple nodes/categories/payments in one call prevents
            from using optimisation, it should be equivalent to multiple calls
            on individual nodes/categories/payments.
-         - 
+         -
       """
       getCategory = self.getPortalObject().portal_categories.getCategoryUid
 
@@ -1624,7 +1624,7 @@ class SimulationTool(BaseTool):
 
     security.declareProtected(Permissions.AccessContentsInformation,
                               'getCurrentInventoryList')
-    def getCurrentInventoryList(self, omit_transit=1, 
+    def getCurrentInventoryList(self, omit_transit=1,
                                 transit_simulation_state=None, **kw):
       """
         Returns list of current inventory grouped by section or site
@@ -1679,7 +1679,7 @@ class SimulationTool(BaseTool):
       """
       kw['group_by_variation'] = 0
       method = getattr(self,'get%sInventoryList' % simulation_period)
-      return method(statistic=1, inventory_list=0, 
+      return method(statistic=1, inventory_list=0,
                                    ignore_group_by=1, **kw)
 
     security.declareProtected(Permissions.AccessContentsInformation,
@@ -1746,7 +1746,7 @@ class SimulationTool(BaseTool):
 
     security.declareProtected(Permissions.AccessContentsInformation,
                               'getInventoryAssetPrice')
-    def getInventoryAssetPrice(self, src__=0, 
+    def getInventoryAssetPrice(self, src__=0,
                                simulation_period='',
                                valuation_method=None,
                                **kw):
@@ -1796,7 +1796,11 @@ class SimulationTool(BaseTool):
 
       result = self.Resource_zGetAssetPrice(
           valuation_method=valuation_method,
+          src__=src__,
           **sql_kw)
+
+      if src__ :
+        return result
 
       if len(result) > 0:
         return result[-1].total_asset_price
@@ -1942,7 +1946,7 @@ class SimulationTool(BaseTool):
           selection_domain=selection_domain, selection_report=selection_report,
           precision=precision, **sql_kw)
 
-    security.declareProtected(Permissions.AccessContentsInformation, 
+    security.declareProtected(Permissions.AccessContentsInformation,
                               'getNextNegativeInventoryDate')
     def getNextNegativeInventoryDate(self, src__=0, **kw):
       """
@@ -2055,7 +2059,7 @@ class SimulationTool(BaseTool):
           if isinstance(value, DateTime):
             value = value.toZone('UTC').ISO()
           value = '%s' % (value, )
-        # Do not remove dates in new_kw, they are required in 
+        # Do not remove dates in new_kw, they are required in
         # order to do a "select item left join item on date"
         new_kw[key] = value
 
@@ -2084,7 +2088,7 @@ class SimulationTool(BaseTool):
       """
       kw['item.simulation_state'] = self.getPortalCurrentInventoryStateList()
       return self.getTrackingList(**kw)
-    
+
     security.declareProtected(Permissions.AccessContentsInformation, 'getCurrentTrackingHistoryList')
     def getCurrentTrackingHistoryList(self, **kw):
       """
@@ -2092,7 +2096,7 @@ class SimulationTool(BaseTool):
       """
       kw['item.simulation_state'] = self.getPortalCurrentInventoryStateList()
       return self.getTrackingHistoryList(**kw)
-    
+
     security.declareProtected(Permissions.AccessContentsInformation, 'getTrackingHistoryList')
     def getTrackingHistoryList(self, **kw):
       """
@@ -2761,7 +2765,7 @@ class SimulationTool(BaseTool):
 
     #######################################################
     # Sequence
-    security.declareProtected(Permissions.AccessContentsInformation, 
+    security.declareProtected(Permissions.AccessContentsInformation,
                               'getSequence')
     def getSequence(self, **kw):
       """
@@ -2772,10 +2776,10 @@ class SimulationTool(BaseTool):
 
     #######################################################
     # Time Management
-    security.declareProtected(Permissions.AccessContentsInformation, 
+    security.declareProtected(Permissions.AccessContentsInformation,
                               'getAvailableTime')
-    def getAvailableTime(self, from_date=None, to_date=None, 
-                         portal_type=[], node=[], 
+    def getAvailableTime(self, from_date=None, to_date=None,
+                         portal_type=[], node=[],
                          resource=[], src__=0, **kw):
       """
       Calculate available time for a node
@@ -2823,11 +2827,11 @@ class SimulationTool(BaseTool):
         result = sql_result
       return result
 
-    security.declareProtected(Permissions.AccessContentsInformation, 
+    security.declareProtected(Permissions.AccessContentsInformation,
                               'getAvailableTimeSequence')
-    def getAvailableTimeSequence(self, from_date, to_date,  
+    def getAvailableTimeSequence(self, from_date, to_date,
                                  portal_type=[], node=[],
-                                 resource=[], 
+                                 resource=[],
                                  src__=0,
                                  **kw):
       """
@@ -2867,6 +2871,18 @@ class SimulationTool(BaseTool):
                           src__=src__))
       return sequence
 
+    def _checkExpandAll(self, activate_kw={}):
+      """Check all simulation trees using AppliedRule._checkExpand
+      """
+      portal = self.getPortalObject()
+      active_process = portal.portal_activities.newActiveProcess().getPath()
+      kw = dict(priority=3, tag='checkExpand')
+      kw.update(group_method_cost=1, max_retry=0,
+                active_process=active_process, **activate_kw)
+      self._recurseCallMethod('_checkExpand', min_depth=1, max_depth=1,
+                              activate_kw=kw)
+      return active_process
+
 from Products.ERP5Type.DateUtils import addToDate
 
 class SequenceItem:
@@ -2883,7 +2899,7 @@ class Sequence:
   Sequence is a iterable object, which calculate a range of time
   period.
   """
-  def __init__(self, from_date, to_date, 
+  def __init__(self, from_date, to_date,
                second=None, minute=None, hour=None,
                day=None, month=None, year=None):
     """
@@ -2910,14 +2926,14 @@ class Sequence:
     # Calculate all time period
     current_from_date = from_date
     while current_from_date < to_date:
-      current_to_date = addToDate(current_from_date, 
+      current_to_date = addToDate(current_from_date,
                                   second=second,
                                   minute=minute,
                                   hour=hour,
                                   day=day,
                                   month=month,
                                   year=year)
-      self.item_list.append(SequenceItem(current_from_date, 
+      self.item_list.append(SequenceItem(current_from_date,
                                          current_to_date))
       current_from_date = current_to_date
 

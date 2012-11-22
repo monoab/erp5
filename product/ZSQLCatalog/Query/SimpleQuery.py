@@ -31,8 +31,15 @@
 from Query import Query
 from Products.ZSQLCatalog.interfaces.query import IQuery
 from zope.interface.verify import verifyClass
-from Products.ZSQLCatalog.SQLCatalog import profiler_decorator
+from Products.ZSQLCatalog.SQLCatalog import profiler_decorator, list_type_list
 from zLOG import LOG, WARNING
+
+NULL_SEARCH_TEXT_OPERATOR_DICT = {
+  '=': 'is',
+  '!=': 'is not',
+}
+for value in NULL_SEARCH_TEXT_OPERATOR_DICT.values():
+  NULL_SEARCH_TEXT_OPERATOR_DICT[value] = value
 
 class SimpleQuery(Query):
   """
@@ -67,27 +74,29 @@ class SimpleQuery(Query):
     # already).
     comparison_operator = comparison_operator.lower()
     if comparison_operator == 'in':
-      if isinstance(value, (list, tuple)):
+      if isinstance(value, list_type_list):
         if len(value) == 0:
           raise ValueError, 'Empty lists are not allowed.'
         elif len(value) == 1:
-          value = value[0]
+          value, = value
           comparison_operator = '='
       else:
         comparison_operator = '='
     elif comparison_operator == '=':
-      if isinstance(value, (list, tuple)):
+      if isinstance(value, list_type_list):
         if len(value) == 0:
           raise ValueError, 'Empty lists are not allowed.'
         elif len(value) == 1:
-          value = value[0]
+          value, = value
         else:
           comparison_operator = 'in'
     if value is None:
-      if comparison_operator == '=':
-        comparison_operator = 'is'
-      elif comparison_operator != 'is':
-        raise ValueError, 'None value with a non-"=" comparison_operator (%r). Not sure what to do.' % (comparison_operator, )
+      try:
+        comparison_operator = NULL_SEARCH_TEXT_OPERATOR_DICT[
+          comparison_operator]
+      except KeyError:
+        raise ValueError('Unexpected comparison_operator %r for None value.'
+          % (comparison_operator, ))
     elif comparison_operator == 'is':
       raise ValueError, 'Non-None value (%r) with "is" comparison_operator. Not sure what to do.' % (value, )
     self.value = value

@@ -28,7 +28,6 @@
 ############################################################################## 
 
 import unittest
-import transaction
 
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from AccessControl.SecurityManagement import newSecurityManager
@@ -121,6 +120,8 @@ class TestTaskMixin:
     """
     return ('erp5_base','erp5_pdm', 'erp5_simulation', 'erp5_trade',
             'erp5_project', 'erp5_simulation_test',
+            'erp5_configurator_standard_solver',
+            'erp5_configurator_standard_trade_template',
             'erp5_core_proxy_field_legacy')
 
 #  def stepLogin(self, **kw):
@@ -457,13 +458,13 @@ class TestTaskMixin:
       self.assertEqual(task_line.getDescription(),
                        task_report_line.getDescription())
 
-  def stepVerifyTaskReportCausalityState(self, sequence=None,
+  def stepAssertDraftCausalityState(self, sequence=None,
                                          sequence_list=None, **kw):
     """
       Verify that confirmed task report starts building and gets solved.
     """
     task_report = sequence.get('task_report')
-    self.assertEqual(task_report.getCausalityState(), 'solved')
+    self.assertEqual(task_report.getCausalityState(), 'draft')
 
   def stepVerifyTaskReportNoPrice(self, sequence=None,
                                   sequence_list=None, **kw):
@@ -547,6 +548,7 @@ class TestTask(TestTaskMixin, ERP5TypeTestCase):
 
   def afterSetUp(self):
     self.validateRules()
+    self.tic()
 
   def getTitle(self):
     return "Task"
@@ -623,7 +625,7 @@ class TestTask(TestTaskMixin, ERP5TypeTestCase):
     sequence_string = self.default_task_report_sequence + '\
                        stepConfirmTaskReport \
                        stepTic \
-                       stepVerifyTaskReportCausalityState \
+                       stepAssertDraftCausalityState \
                        stepStartTaskReport \
                        stepFinishTaskReport \
                        stepCloseTaskReport \
@@ -724,7 +726,7 @@ class TestTask(TestTaskMixin, ERP5TypeTestCase):
       if not('TaskConstraint' in original_property_sheet_list):
         new_property_sheet_list = ['TaskConstraint'] + original_property_sheet_list
         portal_type.edit(type_property_sheet_list=new_property_sheet_list)
-        transaction.commit()
+        self.commit()
       task_module = portal.getDefaultModule(portal_type=self.task_portal_type)
       task = task_module.newContent(portal_type=self.task_portal_type)
       doActionFor = self.portal.portal_workflow.doActionFor

@@ -29,12 +29,14 @@
 import unittest
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5ReportTestCase
 from Products.ERP5Type.tests.utils import reindex
-import transaction
 from DateTime import DateTime
 
 class TestTaskReporting(ERP5ReportTestCase):
   """Test Task Reporting
   """
+  business_process = \
+      'business_process_module/erp5_default_task_business_process'
+
   def getTitle(self):
     return "Task Reporting"
 
@@ -42,6 +44,7 @@ class TestTaskReporting(ERP5ReportTestCase):
     """Returns list of BT to be installed."""
     return ('erp5_core_proxy_field_legacy',
             'erp5_base','erp5_pdm', 'erp5_simulation', 'erp5_trade',
+            'erp5_configurator_standard_trade_template',
             'erp5_project', 'erp5_simulation_test')
 
   @reindex
@@ -55,24 +58,6 @@ class TestTaskReporting(ERP5ReportTestCase):
     if simulation_state == 'confirmed':
       task.confirm()
 
-  def createBusinessProcess(self):
-    module = self.portal.business_process_module
-    id = self.__class__.__name__
-    try:
-      business_process = module[id]
-    except KeyError:
-      default = module.erp5_default_business_process
-      business_process = module.newContent(id, default.getPortalType(),
-                                           specialise_value=default)
-      delivery_path, = default.getTradeModelPathValueList(
-          trade_phase='default/delivery')
-      # We don't set any trade_date here, so that start and stop dates
-      # are copied from Tasks to Task Reports.
-      business_process.newContent(portal_type=delivery_path.getPortalType(),
-                                  reference=delivery_path.getReference(),
-                                  trade_phase=delivery_path.getTradePhase())
-    return business_process.getRelativeUrl()
-
   def afterSetUp(self):
     """Setup the fixture.
     """
@@ -82,8 +67,6 @@ class TestTaskReporting(ERP5ReportTestCase):
       rule = self.getRule(reference=rule_id)
       if rule.getValidationState() != 'validated':
         rule.validate()
-
-    self.business_process = self.createBusinessProcess()
 
     # create organisations
     if not self.portal.organisation_module.has_key('Organisation_1'):
@@ -167,13 +150,12 @@ class TestTaskReporting(ERP5ReportTestCase):
           )
 
     # and all this available to catalog
-    transaction.commit()
     self.tic()
 
   def beforeTearDown(self):
     """Remove all documents.
     """
-    transaction.abort()
+    self.abort()
     portal = self.portal
     portal.task_module.manage_delObjects(
                       list(portal.task_module.objectIds()))
@@ -181,7 +163,6 @@ class TestTaskReporting(ERP5ReportTestCase):
                       list(portal.task_report_module.objectIds()))
     portal.portal_simulation.manage_delObjects(
                       list(portal.portal_simulation.objectIds()))
-    transaction.commit()
     self.tic()
 
   def testProjectMontlyReport(self):

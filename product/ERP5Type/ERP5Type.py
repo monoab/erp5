@@ -89,8 +89,26 @@ class LocalRoleAssignorMixIn(object):
         else:
           user_name = getSecurityManager().getUser().getId()
 
-      group_id_role_dict = self.getLocalRolesFor(ob, user_name)
-
+      group_id_role_dict = {}
+      local_roles_group_id_group_id = {}
+      # Merge results from applicable roles
+      for role_generator in self.getFilteredRoleListFor(ob):
+        local_roles_group_id = ''
+        if getattr(role_generator, 'getLocalRoleGroupValue', None) is not None:
+          # only some role generators like 'Role Information' support it
+          local_role_group = role_generator.getLocalRoleGroupValue()
+          if local_role_group is not None:
+            # role definitions use category to classify different types of local roles
+            # so use their categories' reference
+            local_roles_group_id = local_role_group.getReference() or local_role_group.getId()
+        for group_id, role_list \
+                in role_generator.getLocalRolesFor(ob, user_name).iteritems():
+          group_id_role_dict.setdefault(group_id, set()).update(role_list)
+          if local_roles_group_id:
+            for role in role_list:
+              # Feed local_roles_group_id_group_id with local roles assigned to a group
+              local_roles_group_id_group_id.setdefault(local_roles_group_id, set()).update(((group_id, role),))
+  
       ## Update role assignments to groups
       # Save the owner
       for group, role_list in (ob.__ac_local_roles__ or {}).iteritems():
@@ -101,23 +119,16 @@ class LocalRoleAssignorMixIn(object):
       for group, role_list in group_id_role_dict.iteritems():
         if role_list:
           ac_local_roles[group] = list(role_list)
+
+      if local_roles_group_id_group_id:
+        ob.__ac_local_roles_group_id_dict__ = local_roles_group_id_group_id
+      elif getattr(aq_base(ob),
+            '__ac_local_roles_group_id_dict__', None) is not None:
+        delattr(ob, '__ac_local_roles_group_id_dict__')
+
       ## Make sure that the object is reindexed
       if reindex:
         ob.reindexObjectSecurity()
-
-    security.declarePrivate("getLocalRolesFor")
-    def getLocalRolesFor(self, ob, user_name=None):
-      """Compute the security that should be applied on an object
-
-      Returned value is a dict: {groud_id: role_name_set, ...}
-      """
-      group_id_role_dict = {}
-      # Merge results from applicable roles
-      for role in self.getFilteredRoleListFor(ob):
-        for group_id, role_list \
-        in role.getLocalRolesFor(ob, user_name).iteritems():
-          group_id_role_dict.setdefault(group_id, set()).update(role_list)
-      return group_id_role_dict
 
     security.declarePrivate('getFilteredRoleListFor')
     def getFilteredRoleListFor(self, ob=None):
@@ -381,9 +392,9 @@ class ERP5TypeInformation(XMLObject,
         ob.manage_setLocalRoles(user_id, ['Owner'])
       else:
         if activate_kw is not None:
-          ob.setDefaultActivateParameters(**activate_kw)
+          ob.setDefaultActivateParameterDict(activate_kw)
         if reindex_kw is not None:
-          ob.setDefaultReindexParameters(**reindex_kw)
+          ob.setDefaultReindexParameterDict(reindex_kw)
         if is_indexable is not None:
           base_ob.isIndexable = is_indexable
         container._setObject(id, base_ob)
@@ -422,19 +433,6 @@ class ERP5TypeInformation(XMLObject,
     def _getPropertyHolder(self):
       import erp5.portal_type as module
       return getattr(module, self.getId())
-
-    security.declarePrivate('updatePropertySheetDefinitionDict')
-    def updatePropertySheetDefinitionDict(self, definition_dict):
-      for property_sheet_name in self.getTypePropertySheetList():
-        base = getattr(PropertySheet, property_sheet_name, None)
-        if base is not None:
-          for list_name, property_list in definition_dict.items():
-            try:
-              property_list += getattr(base, list_name, ())
-            except TypeError:
-              raise ValueError("%s is not a list for %s" % (list_name, base))
-      if '_categories' in definition_dict:
-        definition_dict['_categories'] += self.getTypeBaseCategoryList()
 
     # The following 2 methods are needed before there are generated.
 
@@ -517,24 +515,21 @@ class ERP5TypeInformation(XMLObject,
                               'getInstancePropertyAndBaseCategoryList')
     def getInstancePropertyAndBaseCategoryList(self):
       """Return all the properties and base categories of the portal type. """
-      # PropertHolder._properties doesn't contain 'content' properties.
-      ob = self.constructTempInstance(self, self.getId())
-      property_list = list(getattr(ob.__class__, '_properties', []))
-      self.updatePropertySheetDefinitionDict({'_properties': property_list})
-      for property_sheet in getClassPropertyList(ob.__class__):
-        property_list += getattr(property_sheet, '_properties', () )
-
+      # XXX: Hack until introspection methods are defined. At least, this works
+      #      for portal_type whose properties are defined dynamically
+      #      (e.g. temporary property sheets).
+      #      See also AcquiredProperty._asPropertyMap
+      cls = self.getPortalObject().portal_types.getPortalTypeClass(self.getId())
       return_set = set()
-      for property in property_list:
+      for property in cls.getAccessorHolderPropertyList(content=True):
         if property['type'] == 'content':
           for suffix in property['acquired_property_id']:
             return_set.add(property['id'] + '_' + suffix)
         else:
           return_set.add(property['id'])
-      for category in ob.getBaseCategoryList():
+      for category in cls._categories:
         return_set.add(category)
         return_set.add(category + '_free_text')
-
       # XXX Can't return set to restricted code in Zope 2.8.
       return list(return_set)
 

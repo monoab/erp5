@@ -53,6 +53,8 @@
             <value> <string>"""\n
  This script allows to create a new Discussion Thread.\n
 """\n
+from zExceptions import Unauthorized\n
+\n
 MARKER = [\'\', None, []]\n
 \n
 portal = context.getPortalObject()\n
@@ -60,7 +62,13 @@ person = portal.ERP5Site_getAuthenticatedMemberPersonValue()\n
 \n
 version = \'001\'\n
 language = portal.Localizer.get_selected_language()\n
-user_assignment_dict = portal.ERP5Site_getPersonAssignmentDict()\n
+\n
+try:\n
+  user_assignment_dict = portal.ERP5Site_getPersonAssignmentDict()\n
+except Unauthorized:\n
+  # not in all cases current logged in user may access its details\n
+  user_assignment_dict = {\'group_list\': [], \'site_list\':[]}\n
+\n
 if group_list in MARKER:\n
   group_list = user_assignment_dict[\'group_list\']\n
 if site_list in MARKER:\n
@@ -69,7 +77,21 @@ if site_list in MARKER:\n
 # set predicate settings for current Web Section\n
 membership_criterion_category_list = context.getMembershipCriterionCategoryList()\n
 multimembership_criterion_base_category_list = context.getMultimembershipCriterionBaseCategoryList()\n
-reference = title.replace(\' \', \'-\')\n
+\n
+reference = context.Base_generateReferenceFromString(title)\n
+\n
+existing_document = context.getDocumentValue(reference)\n
+existing_web_section_list = portal.portal_catalog(id=reference, portal_type=[\'Web Site\', \'Web Section\'])\n
+existing_module_list = portal.portal_catalog(id=reference, parent_uid=portal.getUid())\n
+if existing_document is not None \\\n
+  or len(existing_web_section_list) \\\n
+  or len(existing_module_list):\n
+  # if there are other document or any tarversal objects (module, web section)\n
+  # which ID or reference duplicates just add some random part\n
+  # so we can distinguish)\n
+  reference = \'%s-%s\' %(context.Base_generateRandomString(), reference)\n
+\n
+category_list = []\n
 create_kw = dict(title = title,\n
                  source_value = person,\n
                  reference = reference,\n
@@ -80,12 +102,19 @@ create_kw = dict(title = title,\n
                  classification=classification,\n
                  group_list=group_list,\n
                  site_list=site_list)\n
+\n
 for base_category in multimembership_criterion_base_category_list:\n
-  create_kw[\'%s_list\' %base_category] = [x for x in membership_criterion_category_list if x.startswith(base_category)]\n
+  #create_kw[\'%s_list\' %base_category] = [x for x in membership_criterion_category_list if x.startswith(base_category)]\n
+  category_list.extend([x for x in membership_criterion_category_list if x.startswith(base_category)])\n
 \n
 discussion_thread = portal.discussion_thread_module.newContent(\n
                       portal_type = "Discussion Thread",\n
                       **create_kw)\n
+# as we create a thread under a "root" predicate web section copy\n
+# all categories from it to create thread, this way thread will be part\n
+# of web section (through getDocumentValue API)\n
+discussion_thread.setCategoryList(category_list)\n
+\n
 discussion_post = discussion_thread.newContent(\n
                       portal_type = "Discussion Post",\n
                       title = title,\n
@@ -95,8 +124,8 @@ discussion_post = discussion_thread.newContent(\n
                       language = language)\n
 \n
 # depending on security model Thread and Post can be directly published or shared\n
-portal_status_message = "New discussion created. Your post will be reviewed for approval."\n
-discussion_thread.submit()\n
+portal_status_message = "New discussion created in background."\n
+discussion_thread.publish()\n
 \n
 if send_notification_text not in (\'\', None):\n
   # we can send notifications\n
@@ -135,13 +164,22 @@ if send_notification_text not in (\'\', None):\n
         message_text_format=notification_message.getContentType(),\n
         store_as_event=False)\n
 \n
-return discussion_thread.Base_redirect(form_id,\n
-         keep_items = dict(portal_status_message=context.Base_translateString(portal_status_message)))\n
+return context.Base_redirect(form_id,\n
+         keep_items = dict(portal_status_message=context.Base_translateString(portal_status_message),\n
+                           thread_relative_url=discussion_thread.getRelativeUrl()))\n
 </string> </value>
         </item>
         <item>
             <key> <string>_params</string> </key>
             <value> <string>title, text_content, form_id=\'view\', predecessor=None, description=None, subject_list=None, classification=None, group_list=None, site_list=None, send_notification_text=None, reference=None,**kw</string> </value>
+        </item>
+        <item>
+            <key> <string>_proxy_roles</string> </key>
+            <value>
+              <tuple>
+                <string>Assignor</string>
+              </tuple>
+            </value>
         </item>
         <item>
             <key> <string>id</string> </key>

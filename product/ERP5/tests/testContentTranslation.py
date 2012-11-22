@@ -28,7 +28,6 @@
 import unittest
 from Products.ERP5Type.tests.ERP5TypeTestCase import ERP5TypeTestCase
 from Products.ERP5Type.tests.utils import to_utf8
-import transaction
 
 
 class TestContentTranslation(ERP5TypeTestCase):
@@ -41,16 +40,17 @@ class TestContentTranslation(ERP5TypeTestCase):
 
   def getBusinessTemplateList(self):
 
-    return ('erp5_base',
+    return ('erp5_full_text_mroonga_catalog',
+            'erp5_base',
             'erp5_content_translation',
             )
 
   def afterSetUp(self):
     # set up translation domain on Person type information.
     from Products.ERP5Type.Accessor.Translation import TRANSLATION_DOMAIN_CONTENT_TRANSLATION
-    self.portal.portal_types.Person.changeTranslations(
-      dict(first_name=TRANSLATION_DOMAIN_CONTENT_TRANSLATION,
-           last_name=TRANSLATION_DOMAIN_CONTENT_TRANSLATION))
+    setTranslationDomain = self.portal.portal_types.Person.setTranslationDomain
+    setTranslationDomain('first_name', TRANSLATION_DOMAIN_CONTENT_TRANSLATION)
+    setTranslationDomain('last_name', TRANSLATION_DOMAIN_CONTENT_TRANSLATION)
 
   def testCatalogSearch(self):
     """
@@ -60,7 +60,6 @@ class TestContentTranslation(ERP5TypeTestCase):
 
     portal.Localizer._add_user_defined_language('Nobody Readable', 'nob-read')
     portal.Localizer.add_language('nob-read')
-    transaction.commit()
     self.tic()
 
     person1 = portal.person_module.newContent(portal_type='Person',
@@ -84,7 +83,6 @@ class TestContentTranslation(ERP5TypeTestCase):
     self.assertEqual(person2.getNobReadTranslatedLastName('   '), '   ')
     self.assertEqual(person3.getNobReadTranslatedFirstName('友介'), '友介')
     self.assertEqual(person3.getNobReadTranslatedLastName('村岡'), '村岡')
-    transaction.commit()
     self.tic()
 
     result1 = portal.portal_catalog(content_translation_title='Yusuke')
@@ -99,7 +97,6 @@ class TestContentTranslation(ERP5TypeTestCase):
 
     # re-catalog
     person3.setNobReadTranslatedFirstName('ゆうすけ')
-    transaction.commit()
     self.tic()
 
     result3 = portal.portal_catalog(content_translation_title='友介')
@@ -107,7 +104,6 @@ class TestContentTranslation(ERP5TypeTestCase):
 
     # un-catalog
     portal.person_module.manage_delObjects(person3.getId())
-    transaction.commit()
     self.tic()
 
     result4 = portal.portal_catalog(content_translation_title='村岡')
@@ -139,7 +135,6 @@ class TestContentTranslation(ERP5TypeTestCase):
                                     portal_type='Person',
                                     first_name='John',
                                     last_name='Smith')
-    transaction.commit()
     self.tic()
 
     self.assertEqual(getattr(person, 'setJaKanaTranslatedFirstName', False),
@@ -154,7 +149,6 @@ class TestContentTranslation(ERP5TypeTestCase):
     ##
     portal.Localizer._add_user_defined_language('Japanese Kana', 'ja-kana')
     portal.Localizer.add_language('ja-kana')
-    transaction.commit()
     self.tic()
 
     self.assert_(getattr(person, 'setJaKanaTranslatedFirstName', False))
@@ -177,7 +171,6 @@ class TestContentTranslation(ERP5TypeTestCase):
 
     self.assert_(person.hasJaKanaTranslatedFirstName())
 
-    transaction.commit()
     self.tic()
 
     self.assert_('タハラ' in to_utf8(person.Base_viewContentTranslation()))

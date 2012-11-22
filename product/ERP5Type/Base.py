@@ -31,7 +31,7 @@ from struct import unpack
 from copy import copy
 import warnings
 import types
-import threading
+import thread, threading
 
 from Products.ERP5Type.Globals import InitializeClass, DTMLFile
 from AccessControl import ClassSecurityInfo
@@ -40,9 +40,11 @@ from AccessControl.PermissionRole import rolesForPermissionOn
 from AccessControl.SecurityManagement import getSecurityManager
 from AccessControl.ZopeGuards import guarded_getattr
 from Acquisition import aq_base, aq_inner, aq_acquire, aq_chain
+from DateTime import DateTime
 import OFS.History
 from OFS.SimpleItem import SimpleItem
 from OFS.PropertyManager import PropertyManager
+from persistent.TimeStamp import TimeStamp
 from zExceptions import NotFound, Unauthorized
 
 from ZopePatch import ERP5PropertyManager
@@ -59,9 +61,10 @@ from Products.ERP5Type import _dtmldir
 from Products.ERP5Type import PropertySheet
 from Products.ERP5Type import interfaces
 from Products.ERP5Type import Permissions
+from Products.ERP5Type.patches.CMFCoreSkinnable import SKINDATA, skinResolve
 from Products.ERP5Type.Utils import UpperCase
 from Products.ERP5Type.Utils import convertToUpperCase, convertToMixedCase
-from Products.ERP5Type.Utils import createExpressionContext
+from Products.ERP5Type.Utils import createExpressionContext, simple_decorator
 from Products.ERP5Type.Accessor.Accessor import Accessor
 from Products.ERP5Type.Accessor.Constant import PropertyGetter as ConstantGetter
 from Products.ERP5Type.Accessor.TypeDefinition import list_types
@@ -83,6 +86,7 @@ from Products.ERP5Type.Accessor.TypeDefinition import asDate
 from Products.ERP5Type.Message import Message
 from Products.ERP5Type.ConsistencyMessage import ConsistencyMessage
 from Products.ERP5Type.UnrestrictedMethod import UnrestrictedMethod
+from Products.ERP5Type.dynamic.import_lock import ImportLock
 
 from zope.interface import classImplementsOnly, implementedBy
 
@@ -256,6 +260,47 @@ class WorkflowMethod(Method):
     # Return result finally
     return result
 
+  # Interactions should not be disabled during normal operation. Only in very
+  # rare and specific cases like data migration. That's why it is implemented
+  # with temporary monkey-patching, instead of slowing down __call__ with yet
+  # another condition.
+
+  _do_interaction = __call__
+  _no_interaction_lock = threading.Lock()
+  _no_interaction_log = None
+  _no_interaction_thread_id = None
+
+  def _no_interaction(self, *args, **kw):
+    if WorkflowMethod._no_interaction_thread_id != thread.get_ident():
+      return self._do_interaction(*args, **kw)
+    log = "skip interactions for %r" % args[0]
+    if WorkflowMethod._no_interaction_log != log:
+      WorkflowMethod._no_interaction_log = log
+      LOG("WorkflowMethod", INFO, log)
+    return self.__dict__['_m'](*args, **kw)
+
+  @staticmethod
+  @simple_decorator
+  def disable(func):
+    def wrapper(*args, **kw):
+      thread_id = thread.get_ident()
+      if WorkflowMethod._no_interaction_thread_id == thread_id:
+        return func(*args, **kw)
+      WorkflowMethod._no_interaction_lock.acquire()
+      try:
+        WorkflowMethod._no_interaction_thread_id = thread_id
+        WorkflowMethod.__call__ = WorkflowMethod.__dict__['_no_interaction']
+        return func(*args, **kw)
+      finally:
+        WorkflowMethod.__call__ = WorkflowMethod.__dict__['_do_interaction']
+        WorkflowMethod._no_interaction_thread_id = None
+        WorkflowMethod._no_interaction_lock.release()
+    return wrapper
+
+  @staticmethod
+  def disabled():
+    return WorkflowMethod._no_interaction_lock.locked()
+
   def registerTransitionAlways(self, portal_type, workflow_id, transition_id):
     """
       Transitions registered as always will be invoked always
@@ -301,10 +346,6 @@ def _aq_reset():
   from Products.ERP5.ERP5Site import getSite
   getSite().portal_types.resetDynamicDocuments()
 
-global method_registration_cache
-method_registration_cache = {}
-
-
 class PropertyHolder(object):
   isRADContent = 1
   WORKFLOW_METHOD_MARKER = ('Base._doNothing',)
@@ -332,6 +373,7 @@ class PropertyHolder(object):
 
     workflow_method = getattr(self, id, None)
     if workflow_method is None:
+      # XXX: We should pass 'tr_id' as second parameter.
       workflow_method = WorkflowMethod(Base._doNothing)
       setattr(self, id, workflow_method)
     if once_per_transaction:
@@ -477,7 +519,9 @@ def initializePortalTypeDynamicWorkflowMethods(ptype_klass, portal_workflow):
           ('getTranslated%s' % UpperCase(state_var),
                                      WorkflowState.TranslatedGetter),
           ('getTranslated%sTitle' % UpperCase(state_var),
-                                     WorkflowState.TranslatedTitleGetter)):
+                                     WorkflowState.TranslatedTitleGetter),
+          ('serialize%s' % UpperCase(state_var), WorkflowState.SerializeGetter),
+          ):
         if not hasattr(ptype_klass, method_id):
           method = getter(method_id, wf_id)
           # Attach to portal_type
@@ -667,7 +711,7 @@ class Base( CopyContainer,
   isTempDocument = ConstantGetter('isTempDocument', value=False)
 
   # Dynamic method acquisition system (code generation)
-  aq_method_lock = threading.RLock()
+  aq_method_lock = ImportLock()
   aq_method_generated = set()
   aq_method_generating = []
   aq_portal_type = {}
@@ -736,13 +780,10 @@ class Base( CopyContainer,
 
   def _propertyMap(self, local_properties=False):
     """ Method overload - properties are now defined on the ptype """
-    klass = self.__class__
     property_list = []
     # Get all the accessor holders for this portal type
     if not local_properties:
-      if hasattr(klass, 'getAccessorHolderPropertyList'):
-        property_list += \
-            self.__class__.getAccessorHolderPropertyList()
+      property_list += self.__class__.getAccessorHolderPropertyList()
 
     property_list += getattr(self, '_local_properties', [])
     return tuple(property_list)
@@ -1393,43 +1434,42 @@ class Base( CopyContainer,
         # We only change if the value is different
         # This may be very long...
         if force_update:
-          update = True
           old_value = None
         else:
           try:
             old_value = getProperty(key, evaluate=0)
           except TypeError:
             old_value = getProperty(key)
-          update = old_value != kw[key]
+          if old_value == kw[key]:
+            not_modified_list.append(key)
+            continue
 
-        if update:
-          # We keep in a thread var the previous values
-          # this can be useful for interaction workflow to implement lookups
-          # XXX If iteraction workflow script is triggered by edit and calls
-          # edit itself, this is useless as the dict will be overwritten
-          # If the keep_existing flag is set to 1, we do not update properties which are defined
-          if not keep_existing or not hasProperty(key):
-            if restricted:
-              accessor_name = 'set' + UpperCase(key)
-              if accessor_name in restricted_method_set:
-                # will raise Unauthorized when not allowed
-                guarded_getattr(self, accessor_name)
-            modified_property_dict[key] = old_value
-            if key != 'id':
-              modified_object_list = _setProperty(key, kw[key])
-              # BBB: if the setter does not return anything, assume
-              # that self has been modified.
-              if modified_object_list is None:
-                modified_object_list = (self,)
-              for o in modified_object_list:
-                # XXX using id is not quite nice, but getUID causes a
-                # problem at the bootstrap of an ERP5 site. Therefore,
-                # objects themselves cannot be used as keys.
-                modified_object_dict[id(o)] = o
-            else:
-              self.setId(kw['id'], reindex=reindex_object)
+        # We keep in a thread var the previous values
+        # this can be useful for interaction workflow to implement lookups
+        # XXX If iteraction workflow script is triggered by edit and calls
+        # edit itself, this is useless as the dict will be overwritten
+        # If the keep_existing flag is set to 1, we do not update properties which are defined
+        if keep_existing and hasProperty(key):
+          continue
+        if restricted:
+          accessor_name = 'set' + UpperCase(key)
+          if accessor_name in restricted_method_set:
+            # will raise Unauthorized when not allowed
+            guarded_getattr(self, accessor_name)
+        modified_property_dict[key] = old_value
+        if key != 'id':
+          modified_object_list = _setProperty(key, kw[key])
+          # BBB: if the setter does not return anything, assume
+          # that self has been modified.
+          if modified_object_list is None:
+            modified_object_list = (self,)
+          for o in modified_object_list:
+            # XXX using id is not quite nice, but getUID causes a
+            # problem at the bootstrap of an ERP5 site. Therefore,
+            # objects themselves cannot be used as keys.
+            modified_object_dict[id(o)] = o
         else:
-          not_modified_list.append(key)
+          self.setId(kw['id'], reindex=reindex_object)
       return not_modified_list
 
     unmodified_key_list = setChangedPropertyList(unordered_key_list)
@@ -1468,6 +1508,10 @@ class Base( CopyContainer,
                       reindex_object=reindex_object, restricted=1, **kw)
 
   # XXX Is this useful ? (Romain)
+  #     Probably not. Even if it should speed up portal_type initialization and
+  #     save some memory because edit_workflow is used in many places, I (jm)
+  #     think it's negligible compared to the performance loss on all
+  #     classes/types that are not bound to edit_workflow.
   edit = WorkflowMethod(edit)
 
   # Accessing object property through ERP5ish interface
@@ -2580,6 +2624,7 @@ class Base( CopyContainer,
               container=self.getParentValue(),
               id=self.getId(),
               temp_object=True,
+              notify_workflow=False,
               is_indexable=False)
 
       # Pass all internal data to new instance. Do not copy, but 
@@ -2917,22 +2962,30 @@ class Base( CopyContainer,
     try:
       script = type_base_cache[cache_key]
     except KeyError:
-      class_name_list = [portal_type, self.getMetaType()] + \
-        [base_class.__name__ for base_class in self.__class__.mro()
-                             if issubclass(base_class, Base)]
       script_name_end = '_' + method_id
-      for script_name_begin in class_name_list:
-        script_id = script_name_begin.replace(' ','') + script_name_end
-        script = getattr(self, script_id, None)
-        if script is not None:
-          type_base_cache[cache_key] = aq_inner(script)
-          return script
+      for base_class in self.__class__.mro():
+        if issubclass(base_class, Base):
+          script_id = base_class.__name__.replace(' ','') + script_name_end
+          script = getattr(self, script_id, None)
+          if script is not None:
+            type_base_cache[cache_key] = aq_inner(script)
+            return script
       type_base_cache[cache_key] = None
 
     if script is not None:
       return script.__of__(self)
     if fallback_script_id is not None:
       return getattr(self, fallback_script_id)
+
+  security.declareProtected(Permissions.AccessContentsInformation, 'skinSuper')
+  def skinSuper(self, skin, id):
+    if id[:1] != '_' and id[:3] != 'aq_':
+      skin_info = SKINDATA.get(thread.get_ident())
+      if skin_info is not None:
+        object = skinResolve(self.getPortalObject(), (skin_info[0], skin), id)
+        if object is not None:
+          return object.__of__(self)
+    raise AttributeError(id)
 
   # Predicate handling
   security.declareProtected(Permissions.AccessContentsInformation, 'asPredicate')
@@ -3104,25 +3157,27 @@ class Base( CopyContainer,
 
       NOTE: this method is not generic enough. Suggestion: define a modification_date
       variable on the workflow which is an alias to time.
+
+      XXX: Should we return the ZODB date if it's after the last history entry ?
     """
-    # Check if edit_workflow defined
-    portal_workflow = getToolByName(self.getPortalObject(), 'portal_workflow')
-    wf = portal_workflow.getWorkflowById('edit_workflow')
-    wf_list = list(portal_workflow.getWorkflowsFor(self))
-    if wf is not None:
-      wf_list = [wf] + wf_list
-    max_date = None
-    for wf in wf_list:
-      try:
-        history = wf.getInfoFor(self, 'history', None)
-      except KeyError:
-        history = None
-      if history is not None and len(history):
-        date = history[-1].get('time', None)
-        # Then get the last line of edit_workflow
+    try:
+      history_list = aq_base(self).workflow_history
+    except AttributeError:
+      pass
+    else:
+      max_date = None
+      for history in history_list.itervalues():
+        try:
+          date = history[-1]['time']
+        except (IndexError, KeyError):
+          continue
         if date > max_date:
           max_date = date
-    return max_date
+      if max_date:
+        # Return a copy of history time, to prevent modification
+        return DateTime(max_date)
+    if self._p_serial:
+      return DateTime(TimeStamp(self._p_serial).timeTime())
 
   # Layout management
   security.declareProtected(Permissions.AccessContentsInformation, 'getApplicableLayout')
@@ -3571,6 +3626,12 @@ class Base( CopyContainer,
 
   security.declareProtected(Permissions.ModifyPortalContent, 'setDefaultReindexParameters' )
   def setDefaultReindexParameters(self, **kw):
+    warnings.warn('setDefaultReindexParameters is deprecated in favour of '
+      'setDefaultReindexParameterDict.', DeprecationWarning)
+    self.setDefaultReindexParameterDict(kw)
+
+  security.declareProtected(Permissions.ModifyPortalContent, 'setDefaultReindexParameterDict' )
+  def setDefaultReindexParameterDict(self, kw):
     # This method sets the default keyword parameters to reindex. This is useful
     # when you need to specify special parameters implicitly (e.g. to reindexObject).
     tv = getTransactionalVariable()

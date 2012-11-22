@@ -96,7 +96,8 @@ def allowClassTool():
 def initialize( context ):
   # Import Product Components
   from Tool import (ClassTool, CacheTool, MemcachedTool, SessionTool,
-                    TypesTool, WebServiceTool, PropertySheetTool)
+                    TypesTool, WebServiceTool, PropertySheetTool,
+                    ComponentTool)
   import Document
   from Base import Base, DocumentationHelper
   import XMLObject
@@ -115,7 +116,8 @@ def initialize( context ):
                    SessionTool.SessionTool,
                    TypesTool.TypesTool,
                    WebServiceTool.WebServiceTool,
-                   PropertySheetTool.PropertySheetTool
+                   PropertySheetTool.PropertySheetTool,
+                   ComponentTool.ComponentTool
                   )
   # Do initialization step
   initializeProduct(context, this_module, globals(),
@@ -180,6 +182,7 @@ allow_module('Products.ERP5Type.Message')
 ModuleSecurityInfo('Products.ERP5Type.Message').declarePublic('translateString')
 
 allow_module('Products.ERP5Type.Error')
+allow_module('Products.ERP5Type.Errors')
 allow_module('Products.ERP5Type.JSONEncoder')
 allow_module('Products.ERP5Type.Log')
 ModuleSecurityInfo('Products.ERP5Type.JSON').declarePublic('dumps', 'loads')

@@ -27,9 +27,10 @@
 #
 ##############################################################################
 
-import transaction
 from Products.ERP5TioSafe.tests.testPrestashopMixin import testPrestashopMixin
+from Products.ERP5Type.tests.backportUnittest import skip
 
+@skip("must be checked against zope2.12")
 class TestProductPrestashopSynchronization(testPrestashopMixin):
   """ This class allows to check different cases of Product's sync. """
 
@@ -44,13 +45,11 @@ class TestProductPrestashopSynchronization(testPrestashopMixin):
     self.root_xml = '<catalog>\n%s\n</catalog>'
     self.sale_supply = self.portal.sale_supply_module.newContent(title=self.prestashop.getTitle())
     self.sale_supply.validate()
-    transaction.commit()
     self.tic()
 
   def beforeTearDown(self):
     testPrestashopMixin.beforeTearDown(self)
     self.sale_supply.invalidate()
-    transaction.commit()
     self.tic()
 
   def createProduct(self, **kw):
@@ -73,7 +72,6 @@ class TestProductPrestashopSynchronization(testPrestashopMixin):
         use='sale',
     )
     
-    transaction.commit()
     self.tic()
 
     # Run the sync of products and check product's data after sync
@@ -131,7 +129,6 @@ class TestProductPrestashopSynchronization(testPrestashopMixin):
           portal_type='Product Individual Variation',
           **individual_variation
       )
-    transaction.commit()
     self.tic()
 
     # Run the sync of products and check product's data after sync
@@ -169,7 +166,6 @@ class TestProductPrestashopSynchronization(testPrestashopMixin):
     product.setVariationCategoryList(
         ['ball_size/x4', 'ball_size/x5', 'colour/black', 'colour/white'],
     )
-    transaction.commit()
     self.tic()
 
     # Run the sync of products and check product's data after sync
@@ -235,7 +231,6 @@ class TestProductPrestashopSynchronization(testPrestashopMixin):
           portal_type='Product Individual Variation',
           **individual_variation
       )
-    transaction.commit()
     self.tic()
 
     # Run the sync of products and check product's data after sync
@@ -340,7 +335,6 @@ class TestProductPrestashopSynchronization(testPrestashopMixin):
           portal_type='Product Individual Variation',
           **individual_variation
       )
-    transaction.commit()
     self.tic()
 
     # Run the sync of products and check product's data after sync
@@ -381,7 +375,6 @@ class TestProductPrestashopSynchronization(testPrestashopMixin):
         use='sale',
     )
     
-    transaction.commit()
     self.tic()
 
     # Run the sync of products and check product's data after sync
@@ -417,7 +410,6 @@ class TestProductPrestashopSynchronization(testPrestashopMixin):
     product.setVariationCategoryList(
         ['ball_size/x4', 'ball_size/x5', 'colour/black', 'colour/white'],
     )
-    transaction.commit()
     self.tic()
 
     # Run the sync of products and check product's data after sync
@@ -543,7 +535,6 @@ class TestProductPrestashopSynchronization(testPrestashopMixin):
           portal_type='Product Individual Variation',
           **individual_variation
       )
-    transaction.commit()
     self.tic()
 
     # Run the sync of products and check product's data after sync
@@ -567,7 +558,6 @@ class TestProductPrestashopSynchronization(testPrestashopMixin):
         title='s5',
     )[0].getObject()
     individual_variation.setTitle('s6')
-    transaction.commit()
     self.tic()
     self.assertEqual(len(self.prestashop.product_module()), 1)
     self.loadSync([self.prestashop.product_module, ])
@@ -581,7 +571,6 @@ class TestProductPrestashopSynchronization(testPrestashopMixin):
     # The second update remove variations (individuals and shareds)
     product.setVariationCategoryList(['colour/white', ])
     product.manage_delObjects([individual_variation.getId(), ])
-    transaction.commit()
     self.tic()
     self.assertEqual(len(self.prestashop.product_module()), 1)
     self.loadSync([self.prestashop.product_module, ])
