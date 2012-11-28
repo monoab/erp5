@@ -139,7 +139,7 @@
                         </tuple>
                         <tuple>
                           <string>default_source_title</string>
-                          <string>Sender or Provider</string>
+                          <string>Sender Or Provider</string>
                         </tuple>
                         <tuple>
                           <string>default_destination_section_title</string>
@@ -147,7 +147,7 @@
                         </tuple>
                         <tuple>
                           <string>default_destination_title</string>
-                          <string>Recipient or Beneficiary</string>
+                          <string>Recipient Or Beneficiary</string>
                         </tuple>
                         <tuple>
                           <string>effective_date</string>
@@ -254,7 +254,7 @@
                         </tuple>
                         <tuple>
                           <string>default_source_title</string>
-                          <string>Sender or Provider</string>
+                          <string>Sender Or Provider</string>
                         </tuple>
                         <tuple>
                           <string>default_destination_section_title</string>
@@ -262,7 +262,7 @@
                         </tuple>
                         <tuple>
                           <string>default_destination_title</string>
-                          <string>Recipient or Beneficiary</string>
+                          <string>Recipient Or Beneficiary</string>
                         </tuple>
                         <tuple>
                           <string>effective_date</string>
@@ -344,7 +344,7 @@
                         </tuple>
                         <tuple>
                           <string>default_source_title</string>
-                          <string>Sender or Provider</string>
+                          <string>Sender Or Provider</string>
                         </tuple>
                         <tuple>
                           <string>default_destination_section_title</string>
@@ -352,7 +352,7 @@
                         </tuple>
                         <tuple>
                           <string>default_destination_title</string>
-                          <string>Recipient or Beneficiary</string>
+                          <string>Recipient Or Beneficiary</string>
                         </tuple>
                         <tuple>
                           <string>effective_date</string>
