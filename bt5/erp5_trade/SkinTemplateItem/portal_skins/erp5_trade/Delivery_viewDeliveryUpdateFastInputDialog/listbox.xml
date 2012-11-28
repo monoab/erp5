@@ -90,7 +90,7 @@
                       <list>
                         <tuple>
                           <string>title</string>
-                          <string>Product or Service</string>
+                          <string>Product Or Service</string>
                         </tuple>
                         <tuple>
                           <string>reference</string>
@@ -130,7 +130,7 @@
                         </tuple>
                         <tuple>
                           <string>source</string>
-                          <string></string>
+                          <string>Sender Or Provider</string>
                         </tuple>
                       </list>
                     </value>
