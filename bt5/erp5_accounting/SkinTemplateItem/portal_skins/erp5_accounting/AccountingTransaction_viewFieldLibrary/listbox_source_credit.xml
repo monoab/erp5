@@ -10,8 +10,8 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
                 <string>precision</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -100,7 +100,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Credit for Source</string> </value>
+                    <value> <string>Credit For Source</string> </value>
                 </item>
               </dictionary>
             </value>
