@@ -2406,7 +2406,7 @@ class TestInventoryCacheTable(InventoryAPITestCase):
     self.commit()
     self.tic()
 
-  def test_01_CurrentInventoryWithFullInventory(self):
+  def test_01_CurrentInventory(self):
     """
       Check that optimisation is executed when querying current
       amount
@@ -2614,23 +2614,20 @@ class TestInventoryCacheTable(InventoryAPITestCase):
     """
     Test that getInventory called with from date does not generate cache entry
     """
-    movement = self._makeMovement(quantity=self.BASE_QUANTITY*2,
-      start_date=self.INVENTORY_DATE_3 - 2,
-      simulation_state='delivered')
-    # reindex inventory module, although we modified table by hand
-    # everything must be consistent after reindexation
-    inventory_module = self.getPortal().getDefaultModule(portal_type='Inventory')
-    inventory_module.recursiveReindexObject()
-    self.tic()
-    inventory_kw={'node_uid': self.node_uid,
-                  'at_date': self.INVENTORY_DATE_3}
-    value=self.INVENTORY_QUANTITY_3
-    # use optimisation
+    inventory_kw = {
+      'node_uid': self.node_uid,
+      'to_date': self.NOW,
+      'from_date': self.NOW - self.CACHE_LAG - 10,
+    }
+    # Double stock value and check that we got same result
+    # with and without optimisation
+    value = self.INVENTORY_QUANTITY_3 + self.INVENTORY_QUANTITY_2 + \
+            2 * self.INVENTORY_QUANTITY_1
+    self.doubleStockValue()
     self.assertEquals(value, self.getInventory(**inventory_kw))
     self.assertEquals(value,
                          self.getInventory(optimisation__=False,
                                            **inventory_kw))
-
 
   def test_12_CheckCacheFlush(self):
     """
@@ -2717,7 +2714,6 @@ class TestInventoryCacheTable(InventoryAPITestCase):
     self.assertInventoryEquals(wanted_value, inventory_kw)
 
 
-  @expectedFailure
   def test_MultipleSectionAndFullInventory(self):
     """Make sure that getInventoryList works in the situation which
     two sections use the same node and one section has full inventory for
@@ -2837,7 +2833,6 @@ class TestInventoryCacheTable(InventoryAPITestCase):
                      {(self.section.getUid(), self.node.getUid(), self.resource.getUid()):102,
                       (self.other_section.getUid(), self.node.getUid(), self.resource.getUid()):7})
 
-  @expectedFailure
   def test_ResourceCategory(self):
     """Make sure that resource category works when full inventory exists."""
     # In this test we do not need doucments made by afterSetUp.
@@ -2854,7 +2849,6 @@ class TestInventoryCacheTable(InventoryAPITestCase):
                                         resource_category='product_line/level1',
                                         optimisation__=True))
 
-  @expectedFailure
   def test_SectionCategory(self):
     """Make sure that section category works when full inventory exists."""
     # In this test we do not need doucments made by afterSetUp.
@@ -2868,7 +2862,6 @@ class TestInventoryCacheTable(InventoryAPITestCase):
                                         section_category='group/level1/level2',
                                         optimisation__=True))
 
-  @expectedFailure
   def test_NodeCategory(self):
     # In this test we do not need doucments made by afterSetUp.
     self.clearAllInventoryAndSetUpTwoInventory()
