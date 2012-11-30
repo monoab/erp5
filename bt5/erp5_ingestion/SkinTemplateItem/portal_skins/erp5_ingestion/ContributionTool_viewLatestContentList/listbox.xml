@@ -274,7 +274,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>10 newest items</string> </value>
+                    <value> <string>10 Newest Items</string> </value>
                 </item>
               </dictionary>
             </value>
@@ -284,10 +284,7 @@
   </record>
   <record id="2" aka="AAAAAAAAAAI=">
     <pickle>
-      <tuple>
-        <global name="Method" module="Products.Formulator.MethodField"/>
-        <tuple/>
-      </tuple>
+      <global name="Method" module="Products.Formulator.MethodField"/>
     </pickle>
     <pickle>
       <dictionary>
