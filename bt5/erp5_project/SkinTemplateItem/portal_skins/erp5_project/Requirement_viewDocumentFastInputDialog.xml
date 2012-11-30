@@ -125,7 +125,7 @@
         </item>
         <item>
             <key> <string>title</string> </key>
-            <value> <string>Add Document with Requirements</string> </value>
+            <value> <string>Add Document With Requirements</string> </value>
         </item>
         <item>
             <key> <string>unicode_mode</string> </key>
@@ -133,6 +133,10 @@
         </item>
         <item>
             <key> <string>update_action</string> </key>
+            <value> <string></string> </value>
+        </item>
+        <item>
+            <key> <string>update_action_title</string> </key>
             <value> <string></string> </value>
         </item>
       </dictionary>
