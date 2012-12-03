@@ -332,7 +332,7 @@ toggleNatureField();\n
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>show</string> </value>
+                    <value> <string>Additional Javascript</string> </value>
                 </item>
                 <item>
                     <key> <string>unicode</string> </key>
