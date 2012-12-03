@@ -10,13 +10,13 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
-                <string>catalog_index</string>
-                <string>portal_type</string>
                 <string>base_category</string>
-                <string>height</string>
+                <string>catalog_index</string>
                 <string>columns</string>
                 <string>default</string>
+                <string>height</string>
+                <string>portal_type</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -121,6 +121,12 @@
                     </value>
                 </item>
                 <item>
+                    <key> <string>default</string> </key>
+                    <value>
+                      <list/>
+                    </value>
+                </item>
+                <item>
                     <key> <string>field_id</string> </key>
                     <value> <string>my_multi_relation_field</string> </value>
                 </item>
@@ -157,7 +163,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Follow up</string> </value>
+                    <value> <string>Follow Up</string> </value>
                 </item>
               </dictionary>
             </value>

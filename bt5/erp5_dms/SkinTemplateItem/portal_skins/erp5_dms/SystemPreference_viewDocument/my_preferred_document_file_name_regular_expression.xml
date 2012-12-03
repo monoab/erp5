@@ -10,9 +10,9 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
                 <string>default</string>
                 <string>editable</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -92,10 +92,6 @@
                     <value> <string></string> </value>
                 </item>
                 <item>
-                    <key> <string>description</string> </key>
-                    <value> <string>The title of the document</string> </value>
-                </item>
-                <item>
                     <key> <string>editable</string> </key>
                     <value> <int>1</int> </value>
                 </item>
@@ -113,7 +109,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Filename parsing regular expression</string> </value>
+                    <value> <string>Filename Parsing Regular Expression</string> </value>
                 </item>
               </dictionary>
             </value>

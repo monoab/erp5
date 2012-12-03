@@ -431,6 +431,10 @@
                     <value> <string></string> </value>
                 </item>
                 <item>
+                    <key> <string>context_getter_id</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>css_class</string> </key>
                     <value> <string></string> </value>
                 </item>
@@ -565,7 +569,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Follow up</string> </value>
+                    <value> <string>Follow Up</string> </value>
                 </item>
                 <item>
                     <key> <string>unicode</string> </key>
