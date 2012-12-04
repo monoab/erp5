@@ -104,7 +104,7 @@
                         </tuple>
                         <tuple>
                           <string>source_title</string>
-                          <string>Handled by</string>
+                          <string>Handled By</string>
                         </tuple>
                         <tuple>
                           <string>delivery.start_date</string>
