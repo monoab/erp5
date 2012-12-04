@@ -10,9 +10,9 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
                 <string>default</string>
                 <string>editable</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -109,7 +109,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Product or Service</string> </value>
+                    <value> <string>Product Or Service</string> </value>
                 </item>
               </dictionary>
             </value>
