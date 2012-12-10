@@ -658,7 +658,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Foo_viewPlanningBox</string> </value>
+                    <value> <string>Planning Box</string> </value>
                 </item>
                 <item>
                     <key> <string>title_line</string> </key>
@@ -704,10 +704,7 @@
   </record>
   <record id="2" aka="AAAAAAAAAAI=">
     <pickle>
-      <tuple>
-        <global name="Method" module="Products.Formulator.MethodField"/>
-        <tuple/>
-      </tuple>
+      <global name="Method" module="Products.Formulator.MethodField"/>
     </pickle>
     <pickle>
       <dictionary>
