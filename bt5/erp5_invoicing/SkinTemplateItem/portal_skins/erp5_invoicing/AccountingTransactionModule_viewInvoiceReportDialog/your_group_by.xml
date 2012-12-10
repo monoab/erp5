@@ -10,9 +10,9 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
                 <string>items</string>
                 <string>size</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -124,7 +124,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Kind of report</string> </value>
+                    <value> <string>Kind Of Report</string> </value>
                 </item>
               </dictionary>
             </value>
