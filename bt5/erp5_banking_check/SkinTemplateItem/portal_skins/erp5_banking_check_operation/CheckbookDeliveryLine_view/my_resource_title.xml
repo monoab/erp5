@@ -386,6 +386,10 @@
                     <value> <string></string> </value>
                 </item>
                 <item>
+                    <key> <string>context_getter_id</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>css_class</string> </key>
                     <value> <string></string> </value>
                 </item>
@@ -485,6 +489,16 @@
                     </value>
                 </item>
                 <item>
+                    <key> <string>proxy_listbox_ids</string> </key>
+                    <value>
+                      <list/>
+                    </value>
+                </item>
+                <item>
+                    <key> <string>relation_form_id</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>relation_setter_id</string> </key>
                     <value> <string></string> </value>
                 </item>
@@ -504,7 +518,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Moyen de Paiement</string> </value>
+                    <value> <string>Payment Mode</string> </value>
                 </item>
                 <item>
                     <key> <string>truncate</string> </key>
