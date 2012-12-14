@@ -58,7 +58,6 @@ class ERP5(_ERP5):
     for test_case in self._getAllTestList():
       # skip some tests
       if test_case.startswith('testLive') or test_case.startswith('testVifib') \
-         or test_case.startswith('testFunctional') \
          or test_case.find('Performance') > 0 \
          or test_case in ('testERP5LdapCatalog', # XXX (Ivan), until LDAP server is available this test will alway fail
                           'testERP5eGov', # it is not maintained any more
@@ -91,6 +90,7 @@ class ERP5_simulation(_ERP5):
       erp5_report_new_simulation_failures='1', *args, **kw)
 
 
+# TODO: remove this class
 class ERP5UserInterface(_ERP5):
   """ Run Test Suites which runs Zelenium tests """
 
