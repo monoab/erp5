@@ -11,8 +11,8 @@
             <value>
               <list>
                 <string>description</string>
-                <string>title</string>
                 <string>items</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -92,12 +92,18 @@
                     <value> <string>Base_viewPayrollFieldLibrary</string> </value>
                 </item>
                 <item>
+                    <key> <string>items</string> </key>
+                    <value>
+                      <list/>
+                    </value>
+                </item>
+                <item>
                     <key> <string>target</string> </key>
                     <value> <string>Click to edit the target</string> </value>
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>OverTime Duration Unit</string> </value>
+                    <value> <string>Overtime Duration Unit</string> </value>
                 </item>
               </dictionary>
             </value>
