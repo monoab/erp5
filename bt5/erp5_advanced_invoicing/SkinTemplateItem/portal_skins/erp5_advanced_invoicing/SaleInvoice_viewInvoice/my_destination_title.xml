@@ -429,6 +429,10 @@
                     <value> <string></string> </value>
                 </item>
                 <item>
+                    <key> <string>context_getter_id</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>css_class</string> </key>
                     <value> <string></string> </value>
                 </item>
@@ -525,7 +529,9 @@
                 </item>
                 <item>
                     <key> <string>proxy_listbox_ids</string> </key>
-                    <value> <string></string> </value>
+                    <value>
+                      <list/>
+                    </value>
                 </item>
                 <item>
                     <key> <string>relation_form_id</string> </key>
@@ -551,7 +557,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Recipient or Beneficiary</string> </value>
+                    <value> <string>Recipient Or Beneficiary</string> </value>
                 </item>
                 <item>
                     <key> <string>truncate</string> </key>
