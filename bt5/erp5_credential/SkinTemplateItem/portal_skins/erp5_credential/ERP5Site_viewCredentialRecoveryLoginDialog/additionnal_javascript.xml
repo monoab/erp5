@@ -292,7 +292,7 @@ toggleRecoveryField();\n
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>show</string> </value>
+                    <value> <string>Show</string> </value>
                 </item>
                 <item>
                     <key> <string>unicode</string> </key>
