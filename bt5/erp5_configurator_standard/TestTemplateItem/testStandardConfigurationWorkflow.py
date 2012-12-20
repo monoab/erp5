@@ -298,7 +298,7 @@ class StandardConfigurationMixin(TestLiveConfiguratorWorkflowMixin):
       Check if after configuration the Service objects are validated.
     """
     business_configuration = sequence.get("business_configuration")
-    currency_list = self.getBusinessConfigurationObjectList(business_configuration, 'Service')
+    service_list = self.getBusinessConfigurationObjectList(business_configuration, 'Service')
     self.assertNotEquals(len(service_list), 0)
     for service in service_list:
       self.assertEquals('validated', service.getValidationState())
