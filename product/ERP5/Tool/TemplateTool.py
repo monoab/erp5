@@ -1382,7 +1382,7 @@ class TemplateTool (BaseTool):
             pass
 
         install_kw = {}
-        for listbox_line in imported_bt5.BusinessTemplate_getModifiedObject():
+        for listbox_line in imported_bt5.BusinessTemplate_getModifiedObjectList():
           item = listbox_line.object_id
           state = listbox_line.object_state
           if state.startswith('Removed'):
