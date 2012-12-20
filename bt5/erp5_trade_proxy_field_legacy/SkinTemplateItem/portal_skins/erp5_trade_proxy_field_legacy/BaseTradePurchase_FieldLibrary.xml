@@ -51,6 +51,12 @@ PurchaseTradeCondition<-PurchaseOrder<-PurchasePackingList
 ]]></string> </value>
         </item>
         <item>
+            <key> <string>edit_order</string> </key>
+            <value>
+              <list/>
+            </value>
+        </item>
+        <item>
             <key> <string>encoding</string> </key>
             <value> <string>UTF-8</string> </value>
         </item>
@@ -154,7 +160,7 @@ PurchaseTradeCondition<-PurchaseOrder<-PurchasePackingList
         </item>
         <item>
             <key> <string>title</string> </key>
-            <value> <string>OBSOLETE! Do not use (see description)</string> </value>
+            <value> <string>OBSOLETE. Do Not Use (See Description)</string> </value>
         </item>
         <item>
             <key> <string>unicode_mode</string> </key>
@@ -162,6 +168,10 @@ PurchaseTradeCondition<-PurchaseOrder<-PurchasePackingList
         </item>
         <item>
             <key> <string>update_action</string> </key>
+            <value> <string></string> </value>
+        </item>
+        <item>
+            <key> <string>update_action_title</string> </key>
             <value> <string></string> </value>
         </item>
       </dictionary>

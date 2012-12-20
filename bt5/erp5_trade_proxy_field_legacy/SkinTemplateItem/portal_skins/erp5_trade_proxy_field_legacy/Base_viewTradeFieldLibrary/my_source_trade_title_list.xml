@@ -453,6 +453,10 @@
                     <value> <string></string> </value>
                 </item>
                 <item>
+                    <key> <string>context_getter_id</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>css_class</string> </key>
                     <value> <string></string> </value>
                 </item>
@@ -592,7 +596,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Original Supplier or Worker</string> </value>
+                    <value> <string>Original Supplier Or Worker</string> </value>
                 </item>
                 <item>
                     <key> <string>unicode</string> </key>

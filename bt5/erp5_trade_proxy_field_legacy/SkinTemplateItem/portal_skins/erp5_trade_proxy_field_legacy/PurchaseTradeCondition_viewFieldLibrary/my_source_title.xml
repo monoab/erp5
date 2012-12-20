@@ -10,11 +10,11 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
+                <string>columns</string>
                 <string>description</string>
                 <string>portal_type</string>
-                <string>columns</string>
                 <string>proxy_listbox_ids</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -154,7 +154,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Sender or Provider</string> </value>
+                    <value> <string>Sender Or Provider</string> </value>
                 </item>
               </dictionary>
             </value>
