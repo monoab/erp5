@@ -226,7 +226,7 @@ class StandardConfigurationMixin(TestLiveConfiguratorWorkflowMixin):
       self.assertEquals(len(assignment_list), 1)
       self.assertEquals('my_group', assignment_list[0].getGroup())
 
-  def stepCheckSocialTitleCategory(self, sequence=None,sequence_list=None, **):
+  def stepCheckSocialTitleCategory(self, sequence=None,sequence_list=None, **kw):
     """Check that the social title category is configured.
     """
     self.assertNotEquals(0, 
