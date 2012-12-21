@@ -64,7 +64,7 @@ return context.portal_simulation.getInventoryList(transformed_resource=transform
         </item>
         <item>
             <key> <string>id</string> </key>
-            <value> <string>Resource_getTransformedResourceInventory</string> </value>
+            <value> <string>Resource_getTransformedResourceInventoryList</string> </value>
         </item>
       </dictionary>
     </pickle>
