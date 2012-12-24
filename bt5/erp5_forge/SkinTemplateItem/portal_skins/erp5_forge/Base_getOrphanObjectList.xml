@@ -107,7 +107,7 @@ return object_list\n
         </item>
         <item>
             <key> <string>id</string> </key>
-            <value> <string>Base_getOrphanObjects</string> </value>
+            <value> <string>Base_getOrphanObjectList</string> </value>
         </item>
       </dictionary>
     </pickle>
