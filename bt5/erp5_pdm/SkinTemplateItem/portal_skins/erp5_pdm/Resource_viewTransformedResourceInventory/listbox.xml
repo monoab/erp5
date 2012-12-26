@@ -366,7 +366,7 @@
                       <list>
                         <tuple>
                           <string>node_title</string>
-                          <string>Site or Warehouse</string>
+                          <string>Site Or Warehouse</string>
                         </tuple>
                         <tuple>
                           <string>resource_title</string>
@@ -580,7 +580,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Stock per Transformed Resource</string> </value>
+                    <value> <string>Stock Per Transformed Resource</string> </value>
                 </item>
                 <item>
                     <key> <string>untranslatable_columns</string> </key>
