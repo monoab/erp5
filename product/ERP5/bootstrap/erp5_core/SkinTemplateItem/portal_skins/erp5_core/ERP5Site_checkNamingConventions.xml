@@ -204,7 +204,12 @@ for wf in context.portal_workflow.objectValues():\n
 \n
 \n
 # Test portal types\n
-for ptype in context.portal_types.objectValues():\n
+portal_types = [x for x in context.portal_types.objectValues() if x.id not in \n
+                  [\'Application Id Generator\', \'Conceptual Id Generator\', \'DateTime Divergence Tester\',\n
+                  \'Distributed Ram Cache\', \'Fax\', \'Fax Message\', \'Id Tool\', \'OAuth Tool\', \'OOo Document\',\n
+                   \'Ram Cache\', \'SQL Non Continuous Increasing Id Generator\', \'Url Registry Tool\',\n
+                   \'ZODB Continuous Increasing Id Generator\']]\n
+for ptype in portal_types:\n
   pt_title = ptype.title\n
   pt_id = ptype.id\n
   message = \'\'\n
