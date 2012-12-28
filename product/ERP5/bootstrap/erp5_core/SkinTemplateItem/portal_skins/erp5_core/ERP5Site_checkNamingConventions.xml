@@ -77,7 +77,7 @@ LOWERCASE_WORD_LIST = (\'g\', \'cm\', \'kg\', \'%\', \'/\', \'...\', \'m\', \'-\
 LOWERCASE_WORD_DICT = dict([(word, 1) for word in LOWERCASE_WORD_LIST])\n
 \n
 # List of allowed characters, usefull to detect non-english strings\n
-ALLOWED_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789%/. ()-_?&\'"\n
+ALLOWED_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789%/. ()-_?&\'#"\n
 \n
 def checkField(folder, form, field):\n
   """\n
