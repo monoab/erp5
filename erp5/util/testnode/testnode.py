@@ -63,6 +63,21 @@ class SlapOSInstance(object):
   def _checkData(self):
     pass
 
+def deunicodeData(data):
+  if isinstance(data, list):
+    new_data = []
+    for sub_data in data:
+      new_data.append(deunicodeData(sub_data))
+  elif isinstance(data, unicode):
+    new_data = data.encode('utf8')
+  elif isinstance(data, dict):
+    new_data = {}
+    for key, value in data.iteritems():
+      key = deunicodeData(key)
+      value = deunicodeData(value)
+      new_data[key] = value
+  return new_data
+
 class NodeTestSuite(SlapOSInstance):
 
   def __init__(self, reference):
@@ -78,6 +93,8 @@ class NodeTestSuite(SlapOSInstance):
         self.working_directory = os.path.join(self.working_directory,
                                              self.reference)
       SlapOSControler.createFolder(self.working_directory)
+      self.test_suite_directory = os.path.join(
+                                   self.working_directory, "test_suite")
       self.custom_profile_path = os.path.join(self.working_directory,
                                  'software.cfg')
     if getattr(self, "vcs_repository_list", None) is not None:
@@ -230,8 +247,8 @@ branch = %(branch)s
     self.log('testnode, retry_software_count : %r' % \
              slapos_instance.retry_software_count)
     self.slapos_controler = SlapOSControler.SlapOSControler(
-      working_directory, self.config)
-    self.slapos_controler.initializeSlapOSControler(log=self.log, slapproxy_log=slapproxy_log,
+      working_directory, self.config, self.log)
+    self.slapos_controler.initializeSlapOSControler(slapproxy_log=slapproxy_log,
        process_manager=self.process_manager, reset_software=reset_software,
        software_path_list=software_path_list)
     self.process_manager.supervisord_pid_file = os.path.join(\
@@ -257,7 +274,7 @@ branch = %(branch)s
     We will build slapos software needed by the testnode itself,
     like the building of selenium-runner by default
     """
-    self._prepareSlapOS(self.config['slapos_directory'],
+    return self._prepareSlapOS(self.config['slapos_directory'],
               test_node_slapos, create_partition=0,
               software_path_list=self.config.get("software_list"))
 
@@ -310,8 +327,10 @@ branch = %(branch)s
     # From this point, test runner becomes responsible for updating test
     # result. We only do cleanup if the test runner itself is not able
     # to run.
+    SlapOSControler.createFolder(node_test_suite.test_suite_directory,
+                                 clean=True)
     self.process_manager.spawn(*invocation_list,
-                          cwd=config['test_suite_directory'],
+                          cwd=node_test_suite.test_suite_directory,
                           log_prefix='runTestSuite', get_output=False)
 
   def cleanUp(self,test_result):
@@ -344,7 +363,7 @@ branch = %(branch)s
           portal = taskdistribution.TaskDistributionTool(portal_url, logger=DummyLogger(log))
           test_suite_portal = taskdistribution.TaskDistributor(portal_url, logger=DummyLogger(log))
           test_suite_json =  test_suite_portal.startTestSuite(config['test_node_title'])
-          test_suite_data = json.loads(test_suite_json)
+          test_suite_data = deunicodeData(json.loads(test_suite_json))
           log("Got following test suite data from master : %r" % \
               (test_suite_data,))
           #Clean-up test suites
