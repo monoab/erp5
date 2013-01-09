@@ -703,7 +703,7 @@ class StandardConfigurationMixin(TestLiveConfiguratorWorkflowMixin):
     self.assertNotEquals(tax_link, None)
     #self.assertFalse(tax_link.getDeliverable())
     self.assertEquals(tax_link.getSuccessor(),"trade_state/trade/invoiced")
-    self.assertEquals(tax_link.getPredecessor(),"trade_state/trade/invoicing")
+    self.assertEquals(tax_link.getPredecessor(),"trade_state/trade/invoiced")
     self.assertEquals(tax_link.getCompletedStateList(),
                         ['confirmed','delivered','started','stopped'])
     self.assertEquals(tax_link.getFrozenStateList(),['delivered','stopped'])
