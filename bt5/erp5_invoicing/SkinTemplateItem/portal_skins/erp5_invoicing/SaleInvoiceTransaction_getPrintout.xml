@@ -239,7 +239,7 @@
           </tr>\n
         </thead>\n
         <tbody>\n
-          <tal:block tal:repeat=\'line_dict python:data_dict["line_not_vat"]\'>\n
+          <tal:block tal:repeat=\'line_dict python:data_dict["line_not_tax"]\'>\n
             <tr>\n
               <td><span tal:content="python: line_dict[\'number_not_tax_line\']"></span></td>\n
               <td><span tal:content="python: line_dict[\'source_reference\']"></span></td>\n
@@ -267,7 +267,7 @@
             <span><span tal:replace=\'orig_message\'/>:</span>\n
             <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/>:</span>  \n
           </th>\n
-          <td><span tal:content="python: price_renderer(data_dict[\'total_price_novat\'])"></span></td>\n
+          <td><span tal:content="python: price_renderer(data_dict[\'total_price_exclude_tax\'])"></span></td>\n
         </tr>\n
       </table>\n
       <table class="tax">\n
@@ -292,19 +292,19 @@
           </tr>\n
         </thead>\n
         <tbody>\n
-          <tal:block tal:repeat=\'line_vat_dict python:data_dict["line_vat"]\'>\n
+          <tal:block tal:repeat=\'line_tax_dict python:data_dict["line_tax"]\'>\n
             <tr>\n
-              <td tal:condition="python: line_vat_dict[\'vat_number\'] != \'\'">\n
-                <span tal:content="python: line_vat_dict[\'vat_number\']">:</span>\n
+              <td tal:condition="python: line_tax_dict[\'tax_line_number\'] != \'\'">\n
+                <span tal:content="python: line_tax_dict[\'tax_line_number\']">:</span>\n
               </td>\n
-              <td tal:condition="python: line_vat_dict[\'total_quantity\'] != \'\'"> \n
-                <span tal:content="python: price_renderer(line_vat_dict[\'total_quantity\'])">qty</span>\n
+              <td tal:condition="python: line_tax_dict[\'total_quantity\'] != \'\'"> \n
+                <span tal:content="python: price_renderer(line_tax_dict[\'total_quantity\'])">qty</span>\n
               </td>\n
-              <td tal:condition="python: line_vat_dict[\'base_price\'] != \'\'">\n
-                <span tal:content="python:  quantity_renderer(line_vat_dict[\'base_price\']*100*1.00)+\'%\'">:</span>\n
+              <td tal:condition="python: line_tax_dict[\'base_price\'] != \'\'">\n
+                <span tal:content="python:  quantity_renderer(line_tax_dict[\'base_price\']*100*1.00)+\'%\'">:</span>\n
               </td> \n
-              <td tal:condition="python: line_vat_dict[\'total_price\'] != \'\'">\n
-                <span tal:content="python:  price_renderer(line_vat_dict[\'total_price\'])">:</span>\n
+              <td tal:condition="python: line_tax_dict[\'total_price\'] != \'\'">\n
+                <span tal:content="python:  price_renderer(line_tax_dict[\'total_price\'])">:</span>\n
               </td>            \n
             </tr>\n
           </tal:block>\n
