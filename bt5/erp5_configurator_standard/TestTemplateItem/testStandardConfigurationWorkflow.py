@@ -710,8 +710,8 @@ class StandardConfigurationMixin(TestLiveConfiguratorWorkflowMixin):
     self.assertEquals(tax_link.getTradePhase(),'trade/tax')
 
     self.assertEquals(tax_link.getDeliveryBuilderList(),
-           ["portal_deliveries/purchase_tax_transaction_trade_model_builder",
-            "portal_deliveries/sale_tax_transaction_trade_model_builder"])
+           ["portal_deliveries/purchase_invoice_transaction_trade_model_builder",
+            "portal_deliveries/sale_invoice_transaction_trade_model_builder"])
 
     account_link = getattr(business_process, "account_link", None)
     self.assertNotEquals(account_link, None)
