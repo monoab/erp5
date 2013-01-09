@@ -107,10 +107,10 @@ def getCorporateRegCode(reg_code):\n
     s += \'%s: %s\' % (translateString(\'Corporate Registration Code\'), reg_code)\n
   return s\n
 \n
-def getRegisteredCap(reg_cap):\n
+def getSocialCapital(reg_cap):\n
   s = \'\'\n
   if reg_cap:\n
-    s += \'%s: %s€\' % (translateString(\'Registered Capital\'), reg_cap)\n
+    s += \'%s: %s€\' % (translateString(\'Social Capital\'), reg_cap)\n
   return s\n
 \n
 preferred_date_order = context.getPortalObject().portal_preferences\\\n
@@ -361,10 +361,10 @@ data_dict = {\n
                            getattr(source_section, \'getCorporateRegistrationCode\', None)\\\n
                            is not None and\\\n
                            source_section.getCorporateRegistrationCode() or \'\'),\n
-  \'source_section_registeredcapital\': getRegisteredCap(context.getSourceSection() and\\\n
-                           getattr(source_section, \'getRegisteredCapital\', None)\\\n
+  \'source_section_registeredcapital\': getSocialCapital(context.getSourceSection() and\\\n
+                           getattr(source_section, \'getSocialCapital\', None)\\\n
                            is not None and\\\n
-                           source_section.getRegisteredCapital() or \'\'),\n
+                           source_section.getSocialCapital() or \'\'),\n
                           \n
   \'source_administration_title\': \\\n
       source_administration.getProperty(\'corporate_name\') \\\n
