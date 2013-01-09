@@ -78,7 +78,6 @@ class PreferenceConfiguratorItem(ConfiguratorItemMixin, XMLObject):
                               description = self.description,
                               priority = 1)
 
-    # XXX this have to be translated in user language.
     preference_dict = {}
 
     marker = []
