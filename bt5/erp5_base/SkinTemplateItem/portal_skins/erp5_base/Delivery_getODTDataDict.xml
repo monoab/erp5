@@ -148,15 +148,13 @@ def getTaxLineList(order):\n
 #TODO: remove all the vat and use tax to replace\n
 line_base_contribution_list = []\n
 number = 0\n
-line_novat_totalprice = 0\n
+tax_free_line_totalprice = 0\n
 line_list = []\n
-line_not_vat = []\n
-line_vat = []\n
-line_not_vat_has_no_vat = {}\n
+line_not_tax = []\n
+line_tax = []\n
+line_tax_no_rate = {}\n
 total_price = 0.0\n
-total_vat = 0.0\n
-total_vat_price = 0.0\n
-vat_total_list = []\n
+total_tax_price = 0.0\n
 number_line_not_tax = 0\n
 \n
 def unicodeDict(d):\n
@@ -200,20 +198,20 @@ for line in getSubLineList(context):\n
       if request.get(\'international_form\'):\n
         display_id = \'title\'\n
       desc = (\', \'.join([x[0] for x in line.getVariationCategoryItemList(display_id=display_id)]),)\n
-    is_vat=0\n
+    is_tax=0\n
     portal_preferences = context.getPortalObject().portal_preferences\n
     if portal_preferences.getPreferredTaxUseList()==[] :\n
-      vat="use/trade/tax"\n
-      is_vat=line.isMemberOf(vat)   \n
+      use_of_tax="use/trade/tax"\n
+      is_tax=line.isMemberOf(use_of_tax)   \n
     else:\n
-      vatlist=portal_preferences.getPreferredTaxUseList()     \n
-      for vat in vatlist:\n
-        is_vat = is_vat or line.isMemberOf(vat)\n
+      tax_list=portal_preferences.getPreferredTaxUseList()     \n
+      for use_of_tax in tax_list:\n
+        is_tax = is_tax or line.isMemberOf(use_of_tax)\n
 \n
     #set the not_tax_line with the tax_number and the tax_line with the tax_name\n
     tax_number=\'\'\n
     tax_name=\'\'\n
-    if not is_vat:\n
+    if not is_tax:\n
       if line.getBaseContributionList()==[]:\n
         tax_number=\'0\'\n
       else:\n
@@ -237,7 +235,7 @@ for line in getSubLineList(context):\n
       \'description\': desc,\n
       \'base_contribution\':line.getBaseContribution() or None,\n
       \'use_type\':line.getResourceValue().getUse() or \'\',\n
-      \'use_type_tax\':is_vat,\n
+      \'use_type_tax\':is_tax,\n
       \'total_quantity\': line.getTotalQuantity() or \'\',\n
       \'tax_name\':tax_name or \'\',\n
       \'tax_number\':tax_number or \'\',\n
@@ -250,32 +248,32 @@ for line in getSubLineList(context):\n
     }\n
 \n
     if line_dict[\'use_type_tax\']:\n
-      total_vat_price+=line.getTotalPrice() or 0.0\n
-      line_vat.append(unicodeDict(line_dict.copy()))\n
+      total_tax_price+=line.getTotalPrice() or 0.0\n
+      line_tax.append(unicodeDict(line_dict.copy()))\n
     else:\n
       number_line_not_tax = number_line_not_tax+1\n
       line_dict[\'number_not_tax_line\'] = number_line_not_tax\n
       total_price += line.getTotalPrice() or 0.0\n
-      line_not_vat.append(unicodeDict(line_dict.copy()))\n
+      line_not_tax.append(unicodeDict(line_dict.copy()))\n
       #if one line of product hasn\'t tax, the tax table need to add a taxrate=0 line\n
       if line_dict[\'base_contribution\'] is None:\n
-        line_novat_totalprice = line_novat_totalprice + line_dict[\'total_price\']\n
-        line_not_vat_has_no_vat = {\n
+        tax_free_line_totalprice = tax_free_line_totalprice + line_dict[\'total_price\']\n
+        line_tax_no_rate = {\n
             \'tax_name\': None ,\n
-            \'total_quantity\': line_novat_totalprice,\n
+            \'total_quantity\': tax_free_line_totalprice,\n
             \'base_price\':  0.00 ,\n
             \'total_price\': 0.00 ,\n
         }\n
   line_list.append(unicodeDict(line_dict.copy()))\n
-if line_not_vat_has_no_vat != {} :\n
-  line_vat.append(unicodeDict(line_not_vat_has_no_vat.copy()))\n
-for line_each in line_vat:\n
+if line_tax_no_rate != {} :\n
+  line_tax.append(unicodeDict(line_tax_no_rate.copy()))\n
+for line_each in line_tax:\n
   if line_each[\'tax_name\'] in line_base_contribution_list :\n
-    vatNumber=line_base_contribution_list.index(line_each[\'tax_name\'])+1\n
+    tax_line_number=line_base_contribution_list.index(line_each[\'tax_name\'])+1\n
   else:\n
-    vatNumber=0\n
-  line_each.update({\'vat_number\': vatNumber})\n
-line_vat.sort(key=lambda obj:obj.get(\'vat_number\'))\n
+    tax_line_number=0\n
+  line_each.update({\'tax_line_number\': tax_line_number})\n
+line_tax.sort(key=lambda obj:obj.get(\'tax_line_number\'))\n
 \n
 inch_cm_ratio = 2.54 / 100.0\n
 \n
@@ -369,7 +367,7 @@ data_dict = {\n
   \'source_section_registeredcapital\': getRegisteredCap(context.getSourceSection() and\\\n
                            getattr(source_section, \'getRegisteredCapital\', None)\\\n
                            is not None and\\\n
-                           source_section.getCorporateRegistrationCode() or \'\'),\n
+                           source_section.getRegisteredCapital() or \'\'),\n
                           \n
   \'source_administration_title\': \\\n
       source_administration.getProperty(\'corporate_name\') \\\n
@@ -489,16 +487,13 @@ data_dict = {\n
   \'payment_condition\': getPaymentConditionText(context),\n
   \'delivery_mode\': context.getDeliveryModeTranslatedTitle() or \'\',\n
   \'incoterm\': context.getIncoterm() and context.getIncotermValue().getCodification() or \'\',\n
-\n
-  \'vat_name_list\':line_base_contribution_list,\n
-  \'total_price\':total_price+total_vat_price,\n
-  \'total_price_novat\': total_price,\n
-  \'vat_list\': total_vat,\n
-  \'vat_total_price\':total_vat_price,\n
+  \'total_price\':total_price+total_tax_price,\n
+  \'total_price_exclude_tax\': total_price,\n
+  \'total_tax_price\':total_tax_price,\n
   \'description\': getFieldAsLineList(context.getDescription()),\n
   \'specialise_title\': context.getProperty(\'specialise_title\',\'\'),\n
-  \'line_vat\':line_vat,\n
-  \'line_not_vat\':line_not_vat,\n
+  \'line_tax\':line_tax,\n
+  \'line_not_tax\':line_not_tax,\n
   \'line_list\': line_list,\n
 }\n
 \n
