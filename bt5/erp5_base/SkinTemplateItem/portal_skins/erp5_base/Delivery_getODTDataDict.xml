@@ -143,9 +143,6 @@ def getTaxLineList(order):\n
   tax_line_list.sort(key=lambda line:line.getTitle())\n
   return tax_line_list\n
 \n
-\n
-#consider name includes "vat" and "tax" is present the same things\n
-#TODO: remove all the vat and use tax to replace\n
 line_base_contribution_list = []\n
 number = 0\n
 tax_free_line_totalprice = 0\n
