@@ -52,6 +52,7 @@
             <key> <string>_body</string> </key>
             <value> <string>translateString = context.Base_translateString\n
 request = context.REQUEST\n
+\n
 # display only title line instead of description\n
 use_line_title =  request.get(\'use_line_title\', 0)\n
 \n
@@ -100,6 +101,18 @@ def getVatId(vat_id):\n
     s += \'%s: %s\' % (translateString(\'VAT ID\'), vat_id)\n
   return s\n
 \n
+def getCorporateRegCode(reg_code):\n
+  s = \'\'\n
+  if reg_code:\n
+    s += \'%s: %s\' % (translateString(\'Corporate Registration Code\'), reg_code)\n
+  return s\n
+\n
+def getRegisteredCap(reg_cap):\n
+  s = \'\'\n
+  if reg_cap:\n
+    s += \'%s: %s€\' % (translateString(\'Registered Capital\'), reg_cap)\n
+  return s\n
+\n
 preferred_date_order = context.getPortalObject().portal_preferences\\\n
                                           .getPreferredDateOrder() or \'ymd\'\n
 separator = \'/\'\n
@@ -130,22 +143,21 @@ def getTaxLineList(order):\n
   tax_line_list.sort(key=lambda line:line.getTitle())\n
   return tax_line_list\n
 \n
-vat_dict={\n
-  \'name\':[],\n
-  \'price\':[],\n
-  \'number\':[],\n
-}\n
-vatnames=[]\n
-vatprices=[]\n
-numbers=[]\n
-number=0\n
-isVat=0\n
+\n
+#consider name includes "vat" and "tax" is present the same things\n
+#TODO: remove all the vat and use tax to replace\n
+line_base_contribution_list = []\n
+number = 0\n
+line_novat_totalprice = 0\n
 line_list = []\n
-line_no_vat=[]\n
+line_not_vat = []\n
+line_vat = []\n
+line_not_vat_has_no_vat = {}\n
 total_price = 0.0\n
 total_vat = 0.0\n
-total_vat_price=0.0\n
+total_vat_price = 0.0\n
 vat_total_list = []\n
+number_line_not_tax = 0\n
 \n
 def unicodeDict(d):\n
   for k, v in d.items():\n
@@ -187,15 +199,33 @@ for line in getSubLineList(context):\n
       display_id = \'translated_title\'\n
       if request.get(\'international_form\'):\n
         display_id = \'title\'\n
-      desc = (\', \'.join([x[0] for x in\n
-                        line.getVariationCategoryItemList(display_id=display_id)]),)\n
-    if context.getPortalObject().portal_preferences.getPreferredTaxUseList()==[] :\n
-        vat="use/trade/tax"\n
-        isVat=line.isMemberOf(vat)        \n
+      desc = (\', \'.join([x[0] for x in line.getVariationCategoryItemList(display_id=display_id)]),)\n
+    is_vat=0\n
+    portal_preferences = context.getPortalObject().portal_preferences\n
+    if portal_preferences.getPreferredTaxUseList()==[] :\n
+      vat="use/trade/tax"\n
+      is_vat=line.isMemberOf(vat)   \n
     else:\n
-        vatlist=context.getPortalObject().portal_preferences.getPreferredTaxUseList()        \n
-        for vat in vatlist:\n
-            isVat=isVat or line.isMemberOf(vat)\n
+      vatlist=portal_preferences.getPreferredTaxUseList()     \n
+      for vat in vatlist:\n
+        is_vat = is_vat or line.isMemberOf(vat)\n
+\n
+    #set the not_tax_line with the tax_number and the tax_line with the tax_name\n
+    tax_number=\'\'\n
+    tax_name=\'\'\n
+    if not is_vat:\n
+      if line.getBaseContributionList()==[]:\n
+        tax_number=\'0\'\n
+      else:\n
+        for contribution in line.getBaseContributionList():\n
+          if contribution not in line_base_contribution_list:\n
+            line_base_contribution_list.append(contribution)\n
+          if tax_number==\'\':\n
+            tax_number=str(line_base_contribution_list.index(contribution)+1)\n
+          else:\n
+            tax_number=tax_number+\',\'+str(line_base_contribution_list.index(contribution)+1)\n
+    else:\n
+      tax_name=line.getBaseApplication()\n
     line_dict = {\n
       \'style_name\': \'Table_20_Contents\',\n
       \'left_style_name\': \'Table_20_Contents_20_Left\',\n
@@ -205,29 +235,48 @@ for line in getSubLineList(context):\n
       \'reference\': line.getResource() is not None\\\n
                       and line.getResourceValue().getReference() or \'\',\n
       \'description\': desc,\n
-      \'use_type\':line.getResourceValue().getUse(),\n
-      \'use_type_tax\':isVat,\n
+      \'base_contribution\':line.getBaseContribution() or None,\n
+      \'use_type\':line.getResourceValue().getUse() or \'\',\n
+      \'use_type_tax\':is_vat,\n
       \'total_quantity\': line.getTotalQuantity() or \'\',\n
+      \'tax_name\':tax_name or \'\',\n
+      \'tax_number\':tax_number or \'\',\n
       \'quantity_unit\': line.getQuantityUnitTranslatedTitle() or (\n
         line.getResource() and line.getResourceValue().getQuantityUnitTranslatedTitle()) or \'\',\n
       \'stop_date\': getOrderedDate(line.getStopDate()) or \'\',\n
       \'base_price\': line.getPrice() or \'\',\n
-      \'total_price\': line.getTotalPrice() or \'\',\n
+      \'total_price\': line.getTotalPrice() or 0,\n
       \'specialise_title\' : line.getProperty(\'specialise_title\', \'\'),\n
     }\n
+\n
     if line_dict[\'use_type_tax\']:\n
-      vatnames.append(desc[0])\n
-      vatprices.append(line.getTotalPrice())\n
-      numbers.append(number)\n
-      vat_dict[\'name\']=vatnames\n
-      vat_dict[\'price\']=vatprices\n
-      vat_dict[\'number\']=numbers\n
-      number=number+1\n
       total_vat_price+=line.getTotalPrice() or 0.0\n
+      line_vat.append(unicodeDict(line_dict.copy()))\n
     else:\n
+      number_line_not_tax = number_line_not_tax+1\n
+      line_dict[\'number_not_tax_line\'] = number_line_not_tax\n
       total_price += line.getTotalPrice() or 0.0\n
-      line_no_vat.append(unicodeDict(line_dict.copy()))\n
+      line_not_vat.append(unicodeDict(line_dict.copy()))\n
+      #if one line of product hasn\'t tax, the tax table need to add a taxrate=0 line\n
+      if line_dict[\'base_contribution\'] is None:\n
+        line_novat_totalprice = line_novat_totalprice + line_dict[\'total_price\']\n
+        line_not_vat_has_no_vat = {\n
+            \'tax_name\': None ,\n
+            \'total_quantity\': line_novat_totalprice,\n
+            \'base_price\':  0.00 ,\n
+            \'total_price\': 0.00 ,\n
+        }\n
   line_list.append(unicodeDict(line_dict.copy()))\n
+if line_not_vat_has_no_vat != {} :\n
+  line_vat.append(unicodeDict(line_not_vat_has_no_vat.copy()))\n
+for line_each in line_vat:\n
+  if line_each[\'tax_name\'] in line_base_contribution_list :\n
+    vatNumber=line_base_contribution_list.index(line_each[\'tax_name\'])+1\n
+  else:\n
+    vatNumber=0\n
+  line_each.update({\'vat_number\': vatNumber})\n
+line_vat.sort(key=lambda obj:obj.get(\'vat_number\'))\n
+\n
 inch_cm_ratio = 2.54 / 100.0\n
 \n
 class EmptyOrganisation:\n
@@ -238,6 +287,12 @@ class EmptyOrganisation:\n
   def getDefaultAddressText(self):\n
     return \'\'\n
   def getDefaultAddressRegionTitle(self):\n
+    return \'\'\n
+  def getTelephoneText(self):\n
+    return \'\'\n
+  def getFaxText(self):\n
+    return \'\'\n
+  def getEmailText(self):\n
     return \'\'\n
   def getDefaultImagePath(self):\n
     return \'\'\n
@@ -282,32 +337,40 @@ if destination_administration is None:\n
 data_dict = {\n
   \'source_section_title\': source_section.getProperty(\'corporate_name\') or\\\n
                             source_section.getTitle(),\n
-  \'source_section_image_path\': context.getSourceSectionValue() is not None\\\n
-          and context.getSourceSectionValue().getDefaultImagePath() or \'\',\n
-  \'source_section_image_width\': context.getSourceSectionValue() is not None\\\n
-          and context.getSourceSectionValue().getDefaultImageWidth()  is not None\\\n
-          and context.getSourceSectionValue().getDefaultImageWidth() \\\n
+  \'source_section_image_path\': source_section is not None\\\n
+          and source_section.getDefaultImagePath() or \'\',\n
+  \'source_section_image_width\': source_section is not None\\\n
+          and source_section.getDefaultImageWidth()  is not None\\\n
+          and source_section.getDefaultImageWidth() \\\n
               * inch_cm_ratio or \'\',\n
-  \'source_section_image_height\': context.getSourceSectionValue() is not None\\\n
-          and context.getSourceSectionValue().getDefaultImageHeight()  is not None\\\n
-          and context.getSourceSectionValue().getDefaultImageHeight() \\\n
+  \'source_section_image_height\': source_section is not None\\\n
+          and source_section.getDefaultImageHeight()  is not None\\\n
+          and source_section.getDefaultImageHeight() \\\n
               * inch_cm_ratio or \'\',\n
   \'source_section_address\': getOneLineAddress(\n
           context.getSourceSection() and\n
-              context.getSourceSectionValue().getDefaultAddressText() or \'\',\n
+              source_section.getDefaultAddressText() or \'\',\n
           context.getSourceSection() and \n
-              context.getSourceSectionValue().getDefaultAddressRegionTitle() or \'\'),\n
+              source_section.getDefaultAddressRegionTitle() or \'\'),\n
   \'source_section_telfax\': getPhoneAndFax(context.getSourceSection() and \\\n
-                        context.getSourceSectionValue().getTelephoneText() or \'\',\n
+                        source_section.getTelephoneText() or \'\',\n
           context.getSourceSection() and \\\n
-              context.getSourceSectionValue().getFaxText() or \'\'),\n
+              source_section.getFaxText() or \'\'),\n
   \'source_section_email\': getEmail(context.getSourceSection() and\n
-          context.getSourceSectionValue().getEmailText() or \'\'),\n
+          source_section.getEmailText() or \'\'),\n
   \'source_section_vatid\': getVatId(context.getSourceSection() and\\\n
-                           getattr(context.getSourceSectionValue(), \'getVatCode\', None)\\\n
+                           getattr(source_section, \'getVatCode\', None)\\\n
                            is not None and\\\n
-                           context.getSourceSectionValue().getVatCode() or \'\'),\n
-\n
+                           source_section.getVatCode() or \'\'),\n
+  \'source_section_corporateregcode\': getCorporateRegCode(context.getSourceSection() and\\\n
+                           getattr(source_section, \'getCorporateRegistrationCode\', None)\\\n
+                           is not None and\\\n
+                           source_section.getCorporateRegistrationCode() or \'\'),\n
+  \'source_section_registeredcapital\': getRegisteredCap(context.getSourceSection() and\\\n
+                           getattr(source_section, \'getRegisteredCapital\', None)\\\n
+                           is not None and\\\n
+                           source_section.getCorporateRegistrationCode() or \'\'),\n
+                          \n
   \'source_administration_title\': \\\n
       source_administration.getProperty(\'corporate_name\') \\\n
       or source_administration.getTitle(),\n
@@ -325,17 +388,17 @@ data_dict = {\n
   \'source_title\': source.getProperty(\'corporate_name\') or source.getTitle(),\n
   \'source_address\': getOneLineAddress(\n
           context.getSource() and\n
-              context.getSourceValue().getDefaultAddressText() or \'\',\n
+              source.getDefaultAddressText() or \'\',\n
           context.getSource() and \n
-              context.getSourceValue().getDefaultAddressRegionTitle() or \'\'),\n
+              source.getDefaultAddressRegionTitle() or \'\'),\n
   \'source_telfax\': getPhoneAndFax(context.getSource() and \\\n
-                        context.getSourceValue().getTelephoneText() or \'\',\n
+                        source.getTelephoneText() or \'\',\n
           context.getSource() and \\\n
-              context.getSourceValue().getFaxText() or \'\'),\n
+              source.getFaxText() or \'\'),\n
   \'source_email\': getEmail(context.getSource() and\n
-          context.getSourceValue().getEmailText() or \'\'),\n
+          source.getEmailText() or \'\'),\n
   \'source_vatid\': getVatId(context.getSource() and\n
-      context.getSourceValue().getProperty(\'vat_code\', \'\') or \'\'),\n
+      source.getProperty(\'vat_code\', \'\') or \'\'),\n
 \n
   \'source_decision_title\': context.getSourceDecisionTitle() or \'\',\n
   \'source_decision_image_path\': context.getSourceDecisionValue(portal_type=\'Organisation\') is not None\\\n
@@ -395,7 +458,7 @@ data_dict = {\n
       context.getDestinationSection() and context.getDestinationSectionValue().getFaxText() or \'\'),\n
   \'destination_section_email\': getEmail(context.getDestinationSection() and context.getDestinationSectionValue().getEmailText() or \'\'),\n
   \'destination_section_vatid\': getVatId(context.getDestinationSection() and\n
-      context.getDestinationSectionValue().getProperty(\'vat_code\') or \'\'),\n
+      context.getDestinationSectionValue().getVatCode() or \'\'),\n
 \n
   \'destination_administration_title\':\\\n
     destination_administration.getProperty(\'corporate_name\') or \\\n
@@ -427,15 +490,15 @@ data_dict = {\n
   \'delivery_mode\': context.getDeliveryModeTranslatedTitle() or \'\',\n
   \'incoterm\': context.getIncoterm() and context.getIncotermValue().getCodification() or \'\',\n
 \n
+  \'vat_name_list\':line_base_contribution_list,\n
   \'total_price\':total_price+total_vat_price,\n
   \'total_price_novat\': total_price,\n
   \'vat_list\': total_vat,\n
   \'vat_total_price\':total_vat_price,\n
-  \'vat_total_list\':vat_dict,\n
   \'description\': getFieldAsLineList(context.getDescription()),\n
   \'specialise_title\': context.getProperty(\'specialise_title\',\'\'),\n
-\n
-  \'line_no_vat\':line_no_vat,\n
+  \'line_vat\':line_vat,\n
+  \'line_not_vat\':line_not_vat,\n
   \'line_list\': line_list,\n
 }\n
 \n
