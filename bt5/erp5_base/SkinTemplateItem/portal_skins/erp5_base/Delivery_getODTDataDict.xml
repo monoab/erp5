@@ -125,7 +125,7 @@ def getOrderedDate(date):\n
 \n
 def getPaymentConditionText(order):\n
   if \'custom\' == order.getPaymentConditionTradeDate():\n
-    return order.getPaymentConditionPaymentDate()\n
+    return getOrderedDate(order.getPaymentConditionPaymentDate())\n
   end_of_month = order.getPaymentConditionPaymentEndOfMonth()\n
   days = order.getPaymentConditionPaymentTerm()\n
   if days:\n
@@ -266,11 +266,11 @@ if line_tax_no_rate != {} :\n
   line_tax.append(unicodeDict(line_tax_no_rate.copy()))\n
 for line_each in line_tax:\n
   if line_each[\'tax_name\'] in line_base_contribution_list :\n
-    tax_line_number=line_base_contribution_list.index(line_each[\'tax_name\'])+1\n
+    number_tax_line=line_base_contribution_list.index(line_each[\'tax_name\'])+1\n
   else:\n
-    tax_line_number=0\n
-  line_each.update({\'tax_line_number\': tax_line_number})\n
-line_tax.sort(key=lambda obj:obj.get(\'tax_line_number\'))\n
+    number_tax_line=0\n
+  line_each.update({\'number_tax_line\': number_tax_line})\n
+line_tax.sort(key=lambda obj:obj.get(\'number_tax_line\'))\n
 \n
 inch_cm_ratio = 2.54 / 100.0\n
 \n
