@@ -777,8 +777,9 @@ class StandardConfigurationMixin(TestLiveConfiguratorWorkflowMixin):
                                               sale_trade_condition.getTitle())
     self.assertEquals("STC-General", sale_trade_condition.getReference())
 
-    self.assertNotEquals(None, sale_trade_condition.getEffectiveDate())
-    self.assertNotEquals(None, sale_trade_condition.getExpirationDate())
+    # Trade condition does not need dates
+    self.assertEquals(None, sale_trade_condition.getEffectiveDate())
+    self.assertEquals(None, sale_trade_condition.getExpirationDate())
 
     # Check relation with Business Process
     business_process_list = \
@@ -823,8 +824,9 @@ class StandardConfigurationMixin(TestLiveConfiguratorWorkflowMixin):
                                               purchase_trade_condition.getTitle())
     self.assertEquals("PTC-General", purchase_trade_condition.getReference())
 
-    self.assertNotEquals(None, purchase_trade_condition.getEffectiveDate())
-    self.assertNotEquals(None, purchase_trade_condition.getExpirationDate())
+    # Trade condition does not need dates
+    self.assertEquals(None, purchase_trade_condition.getEffectiveDate())
+    self.assertEquals(None, purchase_trade_condition.getExpirationDate())
 
     # Check relation with Business Process
     business_process_list = \
