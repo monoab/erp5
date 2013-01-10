@@ -449,8 +449,11 @@ class OOoParser(Implicit):
                   return ''.join(part for part in
                     [node.text, ' ' * count, node.tail] if part)
                 elif node.tag == '{%s}span' % node.nsmap['text']:
-                  return ''.join(part for part in
-                    [node.text, node.tail] if part)
+                  part_list = [node.text]
+                  part_list.extend(format_node(child)
+                    for child in node.iterchildren())
+                  part_list.append(node.tail)
+                  return ''.join(part for part in part_list if part)
                 elif node.tag == '{%s}tab' % node.nsmap['text']:
                   return ''.join(part for part in
                     [node.text, '\t', node.tail] if part)
