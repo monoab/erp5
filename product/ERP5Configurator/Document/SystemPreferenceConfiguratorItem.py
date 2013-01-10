@@ -71,10 +71,8 @@ class SystemPreferenceConfiguratorItem(ConfiguratorItemMixin, XMLObject):
   def _build(self, business_configuration):
     portal = self.getPortalObject()
     preference = portal.portal_preferences._getOb(self.object_id, None)
-    if preference is not None:
-      portal.portal_preferences.manage_delObjects(ids=[self.object_id])
-
-    preference = portal.portal_preferences.newContent(
+    if preference is None:
+      preference = portal.portal_preferences.newContent(
                               portal_type = 'System Preference',
                               id = self.object_id,
                               title = self.title,
