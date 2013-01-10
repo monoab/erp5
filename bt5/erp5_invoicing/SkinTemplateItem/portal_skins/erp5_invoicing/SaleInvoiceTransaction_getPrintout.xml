@@ -51,16 +51,25 @@
   <body>\n
     <header>\n
       <h1>Invoice</h1>\n
-      <address>\n
-        <div tal:content="python: data_dict[\'source_section_title\']"></div>\n
-        <div tal:content="python: data_dict[\'source_section_registeredcapital\']"></div>\n
-        <div tal:content="python: data_dict[\'source_section_address\']"></div>\n
-        <div tal:content="python: data_dict[\'source_section_telfax\']"></div>\n
-        <div tal:content="python: data_dict[\'source_section_email\']"></div>\n
-        <div tal:content="python: data_dict[\'source_section_corporateregcode\']"></div>\n
-        <div tal:content="python: data_dict[\'source_section_vatid\']"></div>\n
-      </address>\n
-      <span><img alt="" src="http://www.vifib.com/legal/VIFIB-Legal/vifib_image/LogoVifib-H100.png"></span>\n
+      <table class="company-info">\n
+        <tbody>\n
+          <td>\n
+            <div tal:content="python: data_dict[\'source_section_title\']"></div>\n
+            <div tal:content="python: data_dict[\'source_section_registeredcapital\']"></div>\n
+            <div tal:content="python: data_dict[\'source_section_address\']"></div>\n
+            <div tal:content="python: data_dict[\'source_section_telfax\']"></div>\n
+            <div tal:content="python: data_dict[\'source_section_email\']"></div>\n
+            <div tal:content="python: data_dict[\'source_section_corporateregcode\']"></div>\n
+            <div tal:content="python: data_dict[\'source_section_vatid\']"></div>\n
+          </td>\n
+          <td>\n
+            <!-- Please review -->\n
+            <span tal:define="logo_path python: \'%s?display=default_image?pre_converted_only=True&quality=75.0&display=thumbnail&format=png\' % data_dict[\'source_section_image_path\'];">\n
+            <img alt="" tal:attributes="src logo_path;" >\n
+            </span>\n
+          </td>\n
+        </tbody>\n
+      </table>\n
     </header>\n
     <article>\n
       <table class="detail">\n
@@ -294,8 +303,8 @@
         <tbody>\n
           <tal:block tal:repeat=\'line_tax_dict python:data_dict["line_tax"]\'>\n
             <tr>\n
-              <td tal:condition="python: line_tax_dict[\'tax_line_number\'] != \'\'">\n
-                <span tal:content="python: line_tax_dict[\'tax_line_number\']">:</span>\n
+              <td tal:condition="python: line_tax_dict[\'number_tax_line\'] != \'\'">\n
+                <span tal:content="python: line_tax_dict[\'number_tax_line\']">:</span>\n
               </td>\n
               <td tal:condition="python: line_tax_dict[\'total_quantity\'] != \'\'"> \n
                 <span tal:content="python: price_renderer(line_tax_dict[\'total_quantity\'])">qty</span>\n
