@@ -732,8 +732,6 @@ class StandardConfigurationMixin(TestLiveConfiguratorWorkflowMixin):
     self.assertEquals(pay_link.getTradePhase(), 'trade/payment')
     self.assertEquals(pay_link.getSuccessor(), None)
     self.assertEquals(pay_link.getPredecessor(),"trade_state/trade/accounted")
-    self.assertEquals(pay_link.getCompletedState(), None)
-    self.assertEquals(pay_link.getFrozenState(), None)
     self.assertEquals(pay_link.getCompletedStateList(),
                         ['confirmed','delivered','started','stopped'])
     self.assertEquals(pay_link.getFrozenStateList(),['delivered','stopped'])
