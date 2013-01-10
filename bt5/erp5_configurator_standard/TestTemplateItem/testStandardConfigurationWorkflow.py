@@ -956,8 +956,7 @@ class StandardConfigurationMixin(TestLiveConfiguratorWorkflowMixin):
     resource.validate()
     self.tic()
 
-    start_date = sale_trade_condition.getEffectiveDate() + 1
-    stop_date = sale_trade_condition.getExpirationDate() - 1
+    start_date = stop_date = DateTime()
     order = module.newContent(
        portal_type='Sale Order',
        specialise=(sale_trade_condition.getRelativeUrl(),),
