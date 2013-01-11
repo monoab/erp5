@@ -64,8 +64,12 @@ class SystemPreferenceConfiguratorItem(ConfiguratorItemMixin, XMLObject):
       property_sheet = portal.portal_property_sheets[property_sheet_id]
       for prop in property_sheet.contentValues():
         if prop.getProperty('preference'):
-          property_id_list.append(prop.getReference())
-          property_id_list.append('%s_list' % prop.getReference())
+          list_prefix = ''
+          if prop.getProperty('multivalued') or (
+               prop.getProperty('elementary_type') in (
+                 'lines', 'multiple_selection', 'tokens'):
+            list_prefix = '_list'
+          property_id_list.append('%s%s' % (prop.getReference(), list_prefix)
     return property_id_list
 
   def _build(self, business_configuration):
