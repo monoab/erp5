@@ -67,9 +67,9 @@ class SystemPreferenceConfiguratorItem(ConfiguratorItemMixin, XMLObject):
           list_prefix = ''
           if prop.getProperty('multivalued') or (
                prop.getProperty('elementary_type') in (
-                 'lines', 'multiple_selection', 'tokens'):
+                 'lines', 'multiple_selection', 'tokens')):
             list_prefix = '_list'
-          property_id_list.append('%s%s' % (prop.getReference(), list_prefix)
+          property_id_list.append('%s%s' % (prop.getReference(), list_prefix))
     return property_id_list
 
   def _build(self, business_configuration):
