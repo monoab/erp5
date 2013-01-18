@@ -1,0 +1,200 @@
+<?xml version="1.0"?>
+<ZopeData>
+  <record id="1" aka="AAAAAAAAAAE=">
+    <pickle>
+      <global name="File" module="OFS.Image"/>
+    </pickle>
+    <pickle>
+      <dictionary>
+        <item>
+            <key> <string>_EtagSupport__etag</string> </key>
+            <value> <string>ts58519577.46</string> </value>
+        </item>
+        <item>
+            <key> <string>__name__</string> </key>
+            <value> <string>SaleInvoiceTransaction_getEpsonPrintout.js</string> </value>
+        </item>
+        <item>
+            <key> <string>content_type</string> </key>
+            <value> <string>application/javascript</string> </value>
+        </item>
+        <item>
+            <key> <string>data</string> </key>
+            <value> <string encoding="cdata"><![CDATA[
+
+function printInvoiceOnEpson(){\n
+  // create print data builder object\n
+  var builder = new epson.ePOSBuilder();\n
+\n
+  // initialize (ank mode, smoothing)\n
+  builder.addTextLang(\'en\').addTextSmooth(true);\n
+\n
+  //add title\n
+  builder.addTextSize(2, 2);\n
+  builder.addTextAlign(builder.ALIGN_CENTER);\n
+  builder.addText($.trim($("#invoice_title").text()));\n
+  builder.addFeedLine(2);\n
+\n
+  //add logo\n
+  builder.addTextAlign(builder.ALIGN_CENTER);\n
+  var canvas = $(\'#canvas\')[0];\n
+  var context = canvas.getContext(\'2d\');\n
+  context.drawImage($(\'#company_logo\')[0], 0, 0, 220, 50);\n
+  builder.addImage(context, 0, 0, 220, 50);\n
+  builder.addFeedLine(1);\n
+\n
+  //add supplier\n
+  builder.addTextSize(2, 1);\n
+  builder.addTextAlign(builder.ALIGN_LEFT);\n
+  builder.addText($.trim($(supplier_title).text()));\n
+  builder.addTextSize(1, 1);\n
+  builder.addFeedLine(1);\n
+  $("#supplier_detail div").each(function(){\n
+      builder.addText($(this).text());\n
+      builder.addFeedLine(1);\n
+  });\n
+  builder.addFeedLine(1);\n
+\n
+  //add client\n
+  builder.addTextSize(2, 1);\n
+  builder.addTextAlign(builder.ALIGN_LEFT);\n
+  builder.addText($.trim($(client_title).text()));\n
+  builder.addTextSize(1, 1);\n
+  builder.addFeedLine(1);\n
+  $("#client_detail div").each(function(){\n
+      builder.addText($(this).text());\n
+      builder.addFeedLine(1);\n
+  });\n
+  builder.addFeedLine(1);\n
+\n
+  //add invoice information\n
+  builder.addTextSize(2, 1);\n
+  builder.addTextAlign(builder.ALIGN_LEFT);\n
+  builder.addText($.trim($("#invoice_information_title").text()));\n
+  builder.addTextSize(1, 1);\n
+  builder.addFeedLine(1);\n
+  $("#invoice_information_detail div").each(function(){\n
+      $(this).find("span").each(function(i){\n
+        if(i==0){\n
+          builder.addTextAlign(builder.ALIGN_LEFT);\n
+          builder.addText($.trim($(this).text()));\n
+        }\n
+        else{\n
+          builder.addTextAlign(builder.ALIGN_RIGHT);\n
+          builder.addText($.trim($(this).text()));\n
+        }   \n
+      });\n
+      builder.addFeedLine(1);\n
+  });\n
+  builder.addFeedLine(1);\n
+\n
+  //add products line\n
+  builder.addTextSize(2, 1);\n
+  builder.addTextAlign(builder.ALIGN_LEFT);\n
+  builder.addText($.trim($("#product_detail_title").text()));\n
+  builder.addTextSize(1, 1);\n
+  builder.addFeedLine(1);\n
+  $("#invoice_line tbody tr").each(function(){\n
+    $(this).find("td").each(function(i){\n
+      if(i%2==0){\n
+        if(i==0)\n
+          builder.addText("  ");\n
+        else\n
+          builder.addText("    ");\n
+        builder.addText($.trim($(this).text())+":");\n
+      }\n
+      else{\n
+        builder.addText($.trim($(this).text()));\n
+        builder.addFeedLine(1);\n
+      }       \n
+    });\n
+  });\n
+  builder.addFeedLine(1);\n
+\n
+  //add total price excluding tax price\n
+  builder.addTextSize(2, 1);\n
+  builder.addTextAlign(builder.ALIGN_LEFT);\n
+  builder.addText($.trim($("#total_without_tax tr th").text()));\n
+  builder.addFeedLine(1);\n
+  builder.addText($.trim($("#total_without_tax tr td").text()));\n
+  builder.addFeedLine(2);\n
+\n
+  //add the tax line\n
+  builder.addTextSize(2, 1);\n
+  builder.addTextAlign(builder.ALIGN_LEFT);\n
+  builder.addText($.trim($("#tax_detail_title").text()));\n
+  builder.addTextSize(1, 1);\n
+  builder.addFeedLine(1);\n
+  $("#tax tbody tr").each(function(){\n
+    $(this).find("td").each(function(i){\n
+      if(i%2==0){\n
+        if(i==0)\n
+          builder.addText("  ");\n
+        else\n
+          builder.addText("    ");\n
+        builder.addText($.trim($(this).text())+":");\n
+      }\n
+      else{\n
+        builder.addText($.trim($(this).text()));\n
+        builder.addFeedLine(1);\n
+      }       \n
+    });\n
+  });\n
+  builder.addFeedLine(1);\n
+\n
+  //total price\n
+  builder.addTextSize(2, 1);\n
+  builder.addTextAlign(builder.ALIGN_LEFT);\n
+  builder.addText($.trim($("#total_price tr th").text()));\n
+  builder.addFeedLine(1);\n
+  builder.addText($.trim($("#total_price tr td").text()));\n
+  builder.addFeedLine(2);\n
+\n
+  // append date and time\n
+  builder.addTextSize(1, 1);\n
+  builder.addTextAlign(builder.ALIGN_LEFT);\n
+  var now = new Date();\n
+  builder.addText(now.toDateString() + \' \' + now.toTimeString().slice(0, 8) + \'\\n\');\n
+\n
+  // append paper cutting\n
+  builder.addCut(); \n
+\n
+  // create print object\n
+  var url = \'http://\' + \'192.168.192.168\' + \'/cgi-bin/epos/service.cgi?devid=\' + \'local_printer\' + \'&timeout=\' + \'10000\';\n
+  var epos = new epson.ePOSPrint(url);\n
+\n
+  // register callback function\n
+  epos.onreceive = function (res) {\n
+    // print failure\n
+    if (!res.success) {\n
+      console.log("no response")\n
+    }\n
+  }\n
+\n
+  // register callback function\n
+  epos.onerror = function (err) {\n
+    console.log("error")\n
+  }\n
+\n
+  // send\n
+  epos.send(builder.toString());\n
+}
+
+]]></string> </value>
+        </item>
+        <item>
+            <key> <string>precondition</string> </key>
+            <value> <string></string> </value>
+        </item>
+        <item>
+            <key> <string>size</string> </key>
+            <value> <int>4512</int> </value>
+        </item>
+        <item>
+            <key> <string>title</string> </key>
+            <value> <string></string> </value>
+        </item>
+      </dictionary>
+    </pickle>
+  </record>
+</ZopeData>
