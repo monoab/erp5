@@ -8,7 +8,7 @@
       <dictionary>
         <item>
             <key> <string>_EtagSupport__etag</string> </key>
-            <value> <string>ts57657208.77</string> </value>
+            <value> <string>ts58522744.35</string> </value>
         </item>
         <item>
             <key> <string>__name__</string> </key>
@@ -48,7 +48,8 @@
 h1 { font: bold 100% sans-serif; letter-spacing: 0.5em; text-align: center; text-transform: uppercase; }\n
 \n
 /* table */\n
-\n
+table { page-break-inside: avoid}\n
+tr { page-break-inside:avoid ,page-break-after:avoid,page-break-before:avoid}\n
 table { font-size: 75%; table-layout: fixed; width: 100%; }\n
 table { border-collapse: separate; border-spacing: 2px; }\n
 th, td { border-width: 1px; padding: 0.5em; position: relative; text-align: left; }\n
@@ -69,7 +70,7 @@ body { background: #FFF; border-radius: 1px; box-shadow: 0 0 1in -0.25in rgba(0,
 header { margin: 0 0 3em; }\n
 header:after { clear: both; content: ""; display: table; }\n
 \n
-header h1 { background: #000; border-radius: 0.25em; color: #FFF; margin: 0 0 1em; padding: 0.5em 0; }\n
+header h1 {background: #EEE; border-style: solid; border-color: #DDD; border-radius: 0.25em; margin: 0 0 1em; padding: 0.5em 0; }\n
 header address { float: left; font-size: 75%; font-style: normal; line-height: 1.25; margin: 0 1em 1em 0; }\n
 header address p { margin: 0 0 0.25em; }\n
 header span, header img { display: block; float: right; }\n
@@ -179,7 +180,7 @@ footer {\n
         </item>
         <item>
             <key> <string>size</string> </key>
-            <value> <int>5021</int> </value>
+            <value> <int>5159</int> </value>
         </item>
         <item>
             <key> <string>title</string> </key>
