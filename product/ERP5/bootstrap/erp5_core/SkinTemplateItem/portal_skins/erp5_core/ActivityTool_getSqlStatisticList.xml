@@ -50,10 +50,28 @@
         </item>
         <item>
             <key> <string>_body</string> </key>
-            <value> <string>preference_tool = context.getPortalObject().portal_preferences\n
-context.edit(\n
-    source_section = preference_tool.getPreferredAccountingTransactionSourceSection(),\n
-    resource = preference_tool.getPreferredAccountingTransactionCurrency())\n
+            <value> <string>data = {}\n
+\n
+for d, sql in [(\'SQLDict\',context.ActivityTool_getCurrentActivities(table=\'message\')),\n
+               (\'SQLQueue\',context.ActivityTool_getCurrentActivities(table=\'message_queue\'))]:\n
+  data[d] = {\'line_list\':[]}\n
+  for line in sql:\n
+    tmp = {}\n
+    for k in [\'message\',\'method_id\',\'processing\',\'node\',\'min_pri\',\'max_pri\']:\n
+      tmp[k] = line[k]\n
+    data[d][\'line_list\'].append(tmp)\n
+\n
+for d, sql in [(\'SQLDict2\',context.ActivityTool_getSQLActivities(table=\'message\')),\n
+               (\'SQLQueue2\',context.ActivityTool_getSQLActivities(table=\'message_queue\'))]:\n
+  data[d] = {\'line_list\':[]}\n
+  for line in sql:\n
+    tmp = {\'pri\':line[\'pri\']}\n
+    for k in [\'min\',\'avg\',\'max\']:\n
+      tmp[k] = str(line[k])\n
+    data[d][\'line_list\'].append(tmp)\n
+\n
+import json\n
+return json.dumps(data)\n
 </string> </value>
         </item>
         <item>
@@ -62,7 +80,7 @@ context.edit(\n
         </item>
         <item>
             <key> <string>id</string> </key>
-            <value> <string>AccountingTransaction_initFromPreferences</string> </value>
+            <value> <string>ActivityTool_getSqlStatisticList</string> </value>
         </item>
       </dictionary>
     </pickle>
