@@ -55,6 +55,8 @@ class ERP5(_ERP5):
   def getTestList(self):
     test_list = []
     for test_case in self._getAllTestList():
+      if not 'Functional' in test_case:
+        continue # XXX temporarilly skip non functional tests
       # skip some tests
       if test_case.startswith('testLive') or test_case.startswith('testVifib') \
          or test_case.find('Performance') > 0 \
