@@ -145,7 +145,7 @@
         <br>\n
         <div id="invoice_information">\n
           <div id="invoice_information_title">\n
-            <tal:block tal:define=\'orig_string        string: Invoice information; \n
+            <tal:block tal:define=\'orig_string        string: Invoice; \n
                               orig_message       python: unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8");\n
                               translated_message python: unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
               <span style="font-weight:bold"><span tal:replace=\'orig_message\'/></span>\n
@@ -215,13 +215,33 @@
       </div>\n
 \n
       <table id="invoice_line">\n
+        <thead>\n
+            <tr>\n
+              <th tal:define=\'orig_string string:PROD; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
+                <span><span tal:replace=\'orig_message\'/></span>\n
+                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
+              </th>\n
+              <th tal:define=\'orig_string string:QTY; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
+                <span><span tal:replace=\'orig_message\'/></span>\n
+                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
+              </th>\n
+              <th tal:define=\'orig_string string:U/P; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
+                <span><span tal:replace=\'orig_message\'/></span>\n
+                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
+              </th>\n
+              <th tal:define=\'orig_string string:TAX; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
+                <span><span tal:replace=\'orig_message\'/></span>\n
+                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
+              </th>\n
+              <th tal:define=\'orig_string string:PRICE; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
+                <span><span tal:replace=\'orig_message\'/></span>\n
+                <span  tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
+              </th>\n
+            </tr>\n
+        </thead>\n
         <tbody>\n
           <tal:block tal:repeat=\'line_dict python:data_dict["line_not_tax"]\'>\n
             <tr>\n
-              <td tal:define=\'orig_string string:Product; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
-                <span><span tal:replace=\'orig_message\'/></span>\n
-                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
-              </td>\n
               <td>\n
                 <span>\n
                   <tal:block tal:repeat="line line_dict/description">\n
@@ -230,26 +250,10 @@
                   </tal:block>\n
                 </span>\n
               </td>\n
-              <td tal:define=\'orig_string string:Quanlity; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
-                <span><span tal:replace=\'orig_message\'/></span>\n
-                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
-              </td>\n
-              <td><span tal:content="python: quantity_renderer(line_dict[\'total_quantity\'])"></span></td>\n
-              <td tal:define=\'orig_string string:Unit Price; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
-                <span><span tal:replace=\'orig_message\'/></span>\n
-                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
-              </td>\n
-              <td><span tal:content="python: price_renderer(line_dict[\'base_price\'])"></span></td>\n
-              <td tal:define=\'orig_string string:Tax Code; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
-                <span><span tal:replace=\'orig_message\'/></span>\n
-                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
-              </td>\n
+              <td><span tal:content="python: line_dict[\'total_quantity\']"></span></td>\n
+              <td><span tal:content="python: line_dict[\'base_price\']"></span></td>\n
               <td><span tal:content="python: line_dict[\'tax_number\']"></span></td>\n
-              <td tal:define=\'orig_string string:Totoal Price; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
-                <span><span tal:replace=\'orig_message\'/></span>\n
-                <span  tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
-              </td>\n
-              <td><span tal:content="python: price_renderer(line_dict[\'total_price\'])"></span></td>\n
+              <td><span tal:content="python: line_dict[\'total_price\']"></span></td>\n
             </tr>\n
           </tal:block>\n
         </tbody>\n
@@ -262,7 +266,7 @@
             <span><span tal:replace=\'orig_message\'/>:</span>\n
             <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/>:</span>  \n
           </th>\n
-          <td><span tal:content="python: price_renderer(data_dict[\'total_price_exclude_tax\'])"></span></td>\n
+          <td><span tal:content="python: data_dict[\'total_price_exclude_tax\']"></span></td>\n
         </tr>\n
       </table>\n
 \n
@@ -276,36 +280,40 @@
       </div>\n
 \n
       <table id="tax">\n
+        <thead>\n
+          <tr>\n
+              <th tal:define=\'orig_string string:TAX; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
+                <span><span tal:replace=\'orig_message\'/></span>\n
+                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
+              </th>  \n
+              <th tal:define=\'orig_string string:AMT; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
+                <span><span tal:replace=\'orig_message\'/></span>\n
+                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
+              </th>    \n
+              <th tal:define=\'orig_string string:RATE; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
+                <span><span tal:replace=\'orig_message\'/></span>\n
+                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
+              </th>   \n
+              <th tal:define=\'orig_string string:PRICE; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
+                <span><span tal:replace=\'orig_message\'/></span>\n
+                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
+              </th>  \n
+          </tr>\n
+        </thead>\n
         <tbody>\n
           <tal:block tal:repeat=\'line_tax_dict python:data_dict["line_tax"]\'>\n
             <tr>\n
-              <td tal:define=\'orig_string string:Tax Code; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
-                <span><span tal:replace=\'orig_message\'/></span>\n
-                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
-              </td>\n
               <td tal:condition="python: line_tax_dict[\'number_tax_line\'] != \'\'">\n
                 <span tal:content="python: line_tax_dict[\'number_tax_line\']">:</span>\n
               </td>\n
-              <td tal:define=\'orig_string string:Amount; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
-                <span><span tal:replace=\'orig_message\'/></span>\n
-                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
-              </td>\n
               <td tal:condition="python: line_tax_dict[\'total_quantity\'] != \'\'"> \n
-                <span tal:content="python: price_renderer(line_tax_dict[\'total_quantity\'])">qty</span>\n
-              </td>\n
-              <td tal:define=\'orig_string string:Rate; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
-                <span><span tal:replace=\'orig_message\'/></span>\n
-                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
+                <span tal:content="python: line_tax_dict[\'total_quantity\']">qty</span>\n
               </td>\n
               <td tal:condition="python: line_tax_dict[\'base_price\'] != \'\'">\n
                 <span tal:content="python:  quantity_renderer(line_tax_dict[\'base_price\']*100*1.00)+\'%\'">:</span>\n
               </td> \n
-              <td tal:define=\'orig_string string:Tax Price; orig_message python:unicode(here.Base_translateString(orig_string, lang=default_language),"utf-8"); translated_message python:unicode(here.Base_translateString(orig_string),"utf-8")\'>\n
-                <span><span tal:replace=\'orig_message\'/></span>\n
-                <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/></span>\n
-              </td>\n
               <td tal:condition="python: line_tax_dict[\'total_price\'] != \'\'">\n
-                <span tal:content="python:  price_renderer(line_tax_dict[\'total_price\'])">:</span>\n
+                <span tal:content="python:  line_tax_dict[\'total_price\']">:</span>\n
               </td>            \n
             </tr>\n
           </tal:block>\n
@@ -318,7 +326,7 @@
             <span tal:condition=\'python:translated_message != orig_message\'><span tal:replace=\'translated_message\'/>:</span>  \n
           </th>\n
           <td tal:condition="python: data_dict[\'total_price\'] != \'\'" tal:attributes=\'office:value data_dict/total_price\'>\n
-            <span tal:content="python:  price_renderer(data_dict[\'total_price\'])">:</span>\n
+            <span tal:content="python:  data_dict[\'total_price\']">:</span>\n
           </td> \n
         </tr>\n
       </table>\n

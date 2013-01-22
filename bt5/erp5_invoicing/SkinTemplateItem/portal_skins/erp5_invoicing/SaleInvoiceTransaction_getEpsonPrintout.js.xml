@@ -8,7 +8,7 @@
       <dictionary>
         <item>
             <key> <string>_EtagSupport__etag</string> </key>
-            <value> <string>ts58519577.46</string> </value>
+            <value> <string>ts58844315.59</string> </value>
         </item>
         <item>
             <key> <string>__name__</string> </key>
@@ -22,6 +22,18 @@
             <key> <string>data</string> </key>
             <value> <string encoding="cdata"><![CDATA[
 
+//if the price number length > 13 use the Scientific notation,\n
+//if the length==11,12,13 , just need to remove the number after Decimal point\n
+function priceControl(price,builder){\n
+  var content=parseFloat(price).toFixed(2);\n
+  var content_len=content.length;\n
+  if(content_len>13)\n
+    content=parseFloat(content).toExponential(4);\n
+  else if(content_len>10&&content_len<14)\n
+    content=parseInt(content);\n
+  builder.addText(content);\n
+}\n
+\n
 function printInvoiceOnEpson(){\n
   // create print data builder object\n
   var builder = new epson.ePOSBuilder();\n
@@ -29,126 +41,196 @@ function printInvoiceOnEpson(){\n
   // initialize (ank mode, smoothing)\n
   builder.addTextLang(\'en\').addTextSmooth(true);\n
 \n
-  //add title\n
-  builder.addTextSize(2, 2);\n
-  builder.addTextAlign(builder.ALIGN_CENTER);\n
-  builder.addText($.trim($("#invoice_title").text()));\n
-  builder.addFeedLine(2);\n
-\n
   //add logo\n
   builder.addTextAlign(builder.ALIGN_CENTER);\n
   var canvas = $(\'#canvas\')[0];\n
   var context = canvas.getContext(\'2d\');\n
-  context.drawImage($(\'#company_logo\')[0], 0, 0, 220, 50);\n
-  builder.addImage(context, 0, 0, 220, 50);\n
-  builder.addFeedLine(1);\n
+  context.drawImage($(\'#company_logo\')[0], 0, 0, 330, 75);\n
+  builder.addImage(context, 0, 0, 330, 75);\n
+  builder.addFeed();\n
 \n
-  //add supplier\n
-  builder.addTextSize(2, 1);\n
+  //add company information\n
   builder.addTextAlign(builder.ALIGN_LEFT);\n
-  builder.addText($.trim($(supplier_title).text()));\n
   builder.addTextSize(1, 1);\n
-  builder.addFeedLine(1);\n
-  $("#supplier_detail div").each(function(){\n
+  $("#company-info div").each(function(){\n
       builder.addText($(this).text());\n
-      builder.addFeedLine(1);\n
+      builder.addFeed();\n
   });\n
-  builder.addFeedLine(1);\n
 \n
-  //add client\n
+  //add products information\n
   builder.addTextSize(2, 1);\n
-  builder.addTextAlign(builder.ALIGN_LEFT);\n
-  builder.addText($.trim($(client_title).text()));\n
-  builder.addTextSize(1, 1);\n
-  builder.addFeedLine(1);\n
-  $("#client_detail div").each(function(){\n
-      builder.addText($(this).text());\n
-      builder.addFeedLine(1);\n
-  });\n
-  builder.addFeedLine(1);\n
-\n
-  //add invoice information\n
-  builder.addTextSize(2, 1);\n
+  builder.addTextStyle(false, false, true);\n
   builder.addTextAlign(builder.ALIGN_LEFT);\n
   builder.addText($.trim($("#invoice_information_title").text()));\n
   builder.addTextSize(1, 1);\n
-  builder.addFeedLine(1);\n
+  builder.addFeedLine(2);\n
   $("#invoice_information_detail div").each(function(){\n
-      $(this).find("span").each(function(i){\n
-        if(i==0){\n
-          builder.addTextAlign(builder.ALIGN_LEFT);\n
-          builder.addText($.trim($(this).text()));\n
-        }\n
-        else{\n
-          builder.addTextAlign(builder.ALIGN_RIGHT);\n
-          builder.addText($.trim($(this).text()));\n
-        }   \n
-      });\n
-      builder.addFeedLine(1);\n
+    $(this).find("span").each(function(i){\n
+      if(i==0){\n
+        builder.addTextStyle(false, false, true);\n
+        builder.addTextAlign(builder.ALIGN_LEFT);\n
+        builder.addText($.trim($(this).text()));\n
+      }\n
+      else{\n
+        builder.addTextStyle(false, false, false);\n
+        builder.addTextPosition(350);\n
+        builder.addText($.trim($(this).text()));\n
+      }   \n
+    });\n
+    builder.addFeed();\n
   });\n
-  builder.addFeedLine(1);\n
+  builder.addFeed();\n
 \n
   //add products line\n
-  builder.addTextSize(2, 1);\n
   builder.addTextAlign(builder.ALIGN_LEFT);\n
-  builder.addText($.trim($("#product_detail_title").text()));\n
   builder.addTextSize(1, 1);\n
-  builder.addFeedLine(1);\n
-  $("#invoice_line tbody tr").each(function(){\n
-    $(this).find("td").each(function(i){\n
-      if(i%2==0){\n
-        if(i==0)\n
-          builder.addText("  ");\n
-        else\n
-          builder.addText("    ");\n
-        builder.addText($.trim($(this).text())+":");\n
-      }\n
-      else{\n
-        builder.addText($.trim($(this).text()));\n
-        builder.addFeedLine(1);\n
-      }       \n
+  builder.addTextFont(builder.FONT_C);\n
+  builder.addTextStyle(false, false, true);\n
+  $("#invoice_line thead tr").each(function(j){\n
+    var textPosition=0;\n
+    $(this).find("th").each(function(i){\n
+      builder.addTextPosition(textPosition);\n
+      builder.addText($.trim($(this).text()));\n
+      switch(i)\n
+      {\n
+      case 0:\n
+        textPosition+=100;\n
+        break;\n
+      case 1:\n
+        textPosition+=100;        \n
+        break;\n
+      case 2:\n
+        textPosition+=125;       \n
+        break;\n
+      case 3:\n
+        textPosition+=60;\n
+        break;\n
+      }        \n
     });\n
   });\n
-  builder.addFeedLine(1);\n
+  builder.addFeed();\n
+  builder.addTextStyle(false, false, false);\n
+  $("#invoice_line tbody tr").each(function(){\n
+    var textPosition=0;\n
+    $(this).find("td").each(function(i){\n
+        builder.addTextPosition(textPosition);\n
+        switch(i)\n
+        {\n
+        case 0:\n
+          var content=$.trim($(this).text());\n
+          content_len=content.length;\n
+          if(content_len>8)\n
+            content=content.substr(0,2)+"..."+content.substr(content_len-4,3)\n
+          builder.addText(content);\n
+          textPosition+=100;\n
+          break;\n
+        case 1:\n
+          var content=parseFloat($.trim($(this).text())).toFixed(1);\n
+          var content_len=content.length;\n
+          if(content_len>10)\n
+            content=parseFloat(content).toExponential(2);\n
+          else if(content_len>8&&content_len<11)\n
+            content=parseInt(content);\n
+          builder.addText(content);\n
+          textPosition+=100;\n
+          break;\n
+        case 2:\n
+          priceControl($.trim($(this).text()),builder)\n
+          textPosition+=125;\n
+          break;\n
+        case 3:\n
+          var content=$.trim($(this).text());\n
+          var content_len=content.length;\n
+          content=content.substr(0,5);\n
+          builder.addText(content);\n
+          textPosition+=60;\n
+          break;\n
+        case 4:\n
+          priceControl($.trim($(this).text()),builder)\n
+          break;\n
+        }\n
+    });\n
+    builder.addFeed();\n
+  });\n
 \n
-  //add total price excluding tax price\n
-  builder.addTextSize(2, 1);\n
+  //add total excluding tax price\n
+  builder.addTextPosition(360);\n
+  builder.addText("===========");\n
+  builder.addFeed();\n
+  builder.addTextSize(1, 2);\n
+  builder.addTextStyle(false, false, true);\n
   builder.addTextAlign(builder.ALIGN_LEFT);\n
+  builder.addTextPosition(130);\n
   builder.addText($.trim($("#total_without_tax tr th").text()));\n
-  builder.addFeedLine(1);\n
-  builder.addText($.trim($("#total_without_tax tr td").text()));\n
-  builder.addFeedLine(2);\n
+  builder.addTextPosition(385);\n
+  priceControl($.trim($("#total_without_tax tr td").text()),builder)\n
+  builder.addFeedLine(4);\n
 \n
   //add the tax line\n
-  builder.addTextSize(2, 1);\n
   builder.addTextAlign(builder.ALIGN_LEFT);\n
-  builder.addText($.trim($("#tax_detail_title").text()));\n
   builder.addTextSize(1, 1);\n
-  builder.addFeedLine(1);\n
-  $("#tax tbody tr").each(function(){\n
-    $(this).find("td").each(function(i){\n
-      if(i%2==0){\n
-        if(i==0)\n
-          builder.addText("  ");\n
-        else\n
-          builder.addText("    ");\n
-        builder.addText($.trim($(this).text())+":");\n
+  builder.addTextFont(builder.FONT_C);\n
+  builder.addTextStyle(false, false, true);\n
+  $("#tax thead tr").each(function(j){\n
+    var textPosition=100;\n
+    $(this).find("th").each(function(i){\n
+      builder.addTextPosition(textPosition);\n
+      builder.addText($.trim($(this).text()));\n
+      switch(i)\n
+      {\n
+      case 0:\n
+        textPosition+=60;\n
+        break;\n
+      case 1:\n
+        textPosition+=125;\n
+        break;\n
+      case 2:\n
+        textPosition+=100;\n
+        break;\n
       }\n
-      else{\n
-        builder.addText($.trim($(this).text()));\n
-        builder.addFeedLine(1);\n
-      }       \n
     });\n
   });\n
-  builder.addFeedLine(1);\n
+  builder.addFeed();\n
+  builder.addTextStyle(false, false, false);\n
+  $("#tax tbody tr").each(function(){\n
+    var textPosition=100;\n
+    $(this).find("td").each(function(i){\n
+        builder.addTextPosition(textPosition);\n
+        switch(i)\n
+        {\n
+        case 0:\n
+          builder.addText($.trim($(this).text()));\n
+          textPosition+=60;\n
+          break;\n
+        case 1:\n
+          priceControl($.trim($(this).text()),builder);\n
+          textPosition+=125;\n
+          break;\n
+        case 2:\n
+          builder.addText($.trim($(this).text()));\n
+          textPosition+=100;\n
+          break;\n
+        case 3:\n
+          priceControl($.trim($(this).text()),builder);\n
+          break;\n
+        }\n
+    });\n
+    builder.addFeed();\n
+  });\n
+  builder.addFeed();\n
 \n
-  //total price\n
-  builder.addTextSize(2, 1);\n
+  //add total excluding tax price\n
+  builder.addTextPosition(360);\n
+  builder.addText("===========");\n
+  builder.addFeed();\n
+  builder.addTextSize(1, 2);\n
+  builder.addTextStyle(false, false, true);\n
   builder.addTextAlign(builder.ALIGN_LEFT);\n
+  builder.addTextPosition(130);\n
   builder.addText($.trim($("#total_price tr th").text()));\n
-  builder.addFeedLine(1);\n
-  builder.addText($.trim($("#total_price tr td").text()));\n
-  builder.addFeedLine(2);\n
+  builder.addTextPosition(385);\n
+  priceControl($.trim($("#total_price tr td").text()),builder)\n
+  builder.addFeedLine(4);\n
 \n
   // append date and time\n
   builder.addTextSize(1, 1);\n
@@ -188,7 +270,7 @@ function printInvoiceOnEpson(){\n
         </item>
         <item>
             <key> <string>size</string> </key>
-            <value> <int>4512</int> </value>
+            <value> <int>6931</int> </value>
         </item>
         <item>
             <key> <string>title</string> </key>
