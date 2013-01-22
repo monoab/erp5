@@ -8,7 +8,7 @@
       <dictionary>
         <item>
             <key> <string>_EtagSupport__etag</string> </key>
-            <value> <string>ts58522744.35</string> </value>
+            <value> <string>ts58866282.8</string> </value>
         </item>
         <item>
             <key> <string>__name__</string> </key>
@@ -97,10 +97,11 @@ table.detail td:nth-child(1) { text-align: right; width: 10%;  background: #EEE;
 table.detail td:nth-child(2) { text-align: left; width: 28%; }\n
 table.detail td:nth-child(3) { text-align: right; width: 10%;  background: #EEE; border-color: #BBB; }\n
 table.detail td:nth-child(4) { text-align: left; width: 28%; }\n
-table.detail td:nth-child(5) { text-align: left; width: 24%; padding: 0px;}\n
+table.detail td:nth-child(5) { height:100%; text-align: left; width: 24%; padding: 0px;}\n
 \n
 /* inner table in detail*/\n
 table.inner-table {\n
+  height:100%;\n
   border-collapse: collapse;\n
   border-style: hidden;\n
 }\n
@@ -180,7 +181,7 @@ footer {\n
         </item>
         <item>
             <key> <string>size</string> </key>
-            <value> <int>5159</int> </value>
+            <value> <int>5187</int> </value>
         </item>
         <item>
             <key> <string>title</string> </key>
