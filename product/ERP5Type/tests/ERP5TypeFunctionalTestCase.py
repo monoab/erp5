@@ -284,6 +284,8 @@ class FunctionalTestRunner:
       while self.getStatus() is None:
         time.sleep(10)
         if (time.time() - start) > float(self.timeout):
+          # TODO: here we could take a screenshot and display it in the report
+          # (maybe using data: scheme inside a <img>)
           raise TimeoutError("Test took more than %s seconds" % self.timeout)
     except:
       print("ERP5TypeFunctionalTestCase.test Exception: %r" % (sys.exc_info(),))
