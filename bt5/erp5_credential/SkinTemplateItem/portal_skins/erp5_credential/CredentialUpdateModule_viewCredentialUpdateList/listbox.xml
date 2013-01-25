@@ -141,7 +141,7 @@
                       <list>
                         <tuple>
                           <string>destination_decision_title</string>
-                          <string>Related to</string>
+                          <string>Related To</string>
                         </tuple>
                         <tuple>
                           <string>delivery.start_date</string>
