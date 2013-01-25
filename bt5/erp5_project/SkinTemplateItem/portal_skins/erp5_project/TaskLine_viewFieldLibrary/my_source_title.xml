@@ -10,10 +10,10 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
                 <string>base_category</string>
-                <string>portal_type</string>
                 <string>catalog_index</string>
+                <string>portal_type</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -129,7 +129,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Assigned to</string> </value>
+                    <value> <string>Assigned To</string> </value>
                 </item>
               </dictionary>
             </value>
