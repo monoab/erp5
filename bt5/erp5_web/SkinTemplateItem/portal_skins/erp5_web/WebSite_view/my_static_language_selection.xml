@@ -10,9 +10,9 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
+                <string>default</string>
                 <string>description</string>
                 <string>title</string>
-                <string>default</string>
               </list>
             </value>
         </item>
@@ -80,6 +80,10 @@
             <value>
               <dictionary>
                 <item>
+                    <key> <string>default</string> </key>
+                    <value> <int>0</int> </value>
+                </item>
+                <item>
                     <key> <string>description</string> </key>
                     <value> <string>Check this to use the URL to select the language.</string> </value>
                 </item>
@@ -97,7 +101,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Language in URL</string> </value>
+                    <value> <string>Language In URL</string> </value>
                 </item>
               </dictionary>
             </value>
