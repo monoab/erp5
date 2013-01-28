@@ -99,7 +99,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Image Caption (Default is Chapter Title)</string> </value>
+                    <value> <string>Image Caption (Default Is Chapter Title)</string> </value>
                 </item>
               </dictionary>
             </value>
