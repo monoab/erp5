@@ -66,7 +66,7 @@ import re\n
 ABBRIVIATION_WORD_LIST = ( \'ID\', \'URL\', \'URI\', \'VAT\', \'FAX\', \'GAP\', \'IBAN\', \'BBAN\', \'EAN\', \'BOM\', \'BIC\'\n
                          , \'CSV\', \'SVN\', \'UBM\', \'VPN\', \'CAD\', \'ERP5\', \'PDM\', \'EAN-13\', \'HTML\', \'SQL\',\n
                          \'ZODB\', \'UOM\', \'TALES\', \'RAM\', \'MIME\', \'RSS\', \'PDF\', \'DMS\', \'CRM\', \'PO\', \n
-                         \'VCS\', \'TSV\', \'KM\', \'OAUTH\', \'VADS\', \'ODT\', \'CTX\', \'SMS\'\n
+                         \'VCS\', \'TSV\', \'KM\', \'OAUTH\', \'VADS\', \'ODT\', \'CTX\', \'SMS\', \'UID\'\n
                          )\n
 ABBRIVIATION_WORD_DICT = dict([(word, 1) for word in ABBRIVIATION_WORD_LIST])\n
 \n
