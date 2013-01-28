@@ -50,19 +50,18 @@
         </item>
         <item>
             <key> <string>_body</string> </key>
-            <value> <string>preference_tool = context.getPortalObject().portal_preferences\n
-context.edit(\n
-    source_section = preference_tool.getPreferredAccountingTransactionSourceSection(),\n
-    resource = preference_tool.getPreferredAccountingTransactionCurrency())\n
+            <value> <string>return not (value and (\n
+  request.other[\'field_my_acquisition_object_id_list\'] or\n
+  request.other[\'field_my_acquisition_base_category_list\']))\n
 </string> </value>
         </item>
         <item>
             <key> <string>_params</string> </key>
-            <value> <string></string> </value>
+            <value> <string>value, request</string> </value>
         </item>
         <item>
             <key> <string>id</string> </key>
-            <value> <string>AccountingTransaction_initFromPreferences</string> </value>
+            <value> <string>BaseCategory_validateRelatedLocallyIndexed</string> </value>
         </item>
       </dictionary>
     </pickle>
