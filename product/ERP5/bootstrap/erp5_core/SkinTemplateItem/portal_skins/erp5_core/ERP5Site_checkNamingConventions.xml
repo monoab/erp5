@@ -64,7 +64,7 @@
 # - Check script names (from skin folders and workflows).\n
 import re\n
 ABBRIVIATION_WORD_LIST = ( \'ID\', \'URL\', \'URI\', \'VAT\', \'FAX\', \'GAP\', \'IBAN\', \'BBAN\', \'EAN\', \'BOM\', \'BIC\'\n
-                         , \'CSV\', \'SVN\', \'UBM\', \'VPN\', \'CAD\', \'ERP5\', \'PDM\', \'EAN-13\', \'HTML\', \'SQL\',\n
+                         , \'CSV\', \'SVN\', \'UBM\', \'VPN\', \'CAD\', \'ERP5\', \'PDM\', \'HTML\', \'SQL\',\n
                          \'ZODB\', \'UOM\', \'TALES\', \'RAM\', \'MIME\', \'RSS\', \'PDF\', \'DMS\', \'CRM\', \'PO\', \n
                          \'VCS\', \'TSV\', \'KM\', \'OAUTH\', \'VADS\', \'ODT\', \'CTX\', \'SMS\', \'UID\'\n
                          )\n
