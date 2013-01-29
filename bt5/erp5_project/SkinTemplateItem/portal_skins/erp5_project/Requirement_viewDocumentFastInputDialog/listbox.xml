@@ -555,7 +555,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Requirements with Sub-Requirements</string> </value>
+                    <value> <string>Requirements With Sub-Requirements</string> </value>
                 </item>
                 <item>
                     <key> <string>untranslatable_columns</string> </key>
@@ -583,7 +583,7 @@
       <dictionary>
         <item>
             <key> <string>method_name</string> </key>
-            <value> <string>Project_initializeFastInput</string> </value>
+            <value> <string>Project_initializeFastInputTaskList</string> </value>
         </item>
       </dictionary>
     </pickle>

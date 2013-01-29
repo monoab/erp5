@@ -2,10 +2,7 @@
 <ZopeData>
   <record id="1" aka="AAAAAAAAAAE=">
     <pickle>
-      <tuple>
-        <global name="RelationStringField" module="Products.ERP5Form.RelationField"/>
-        <tuple/>
-      </tuple>
+      <global name="RelationStringField" module="Products.ERP5Form.RelationField"/>
     </pickle>
     <pickle>
       <dictionary>
@@ -406,6 +403,10 @@
                     <value> <string></string> </value>
                 </item>
                 <item>
+                    <key> <string>context_getter_id</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>css_class</string> </key>
                     <value> <string></string> </value>
                 </item>
@@ -502,6 +503,16 @@
                     </value>
                 </item>
                 <item>
+                    <key> <string>proxy_listbox_ids</string> </key>
+                    <value>
+                      <list/>
+                    </value>
+                </item>
+                <item>
+                    <key> <string>relation_form_id</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>relation_setter_id</string> </key>
                     <value> <string></string> </value>
                 </item>
@@ -521,7 +532,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Transfered mutilated banknote</string> </value>
+                    <value> <string>Transfered Mutilated Banknote</string> </value>
                 </item>
                 <item>
                     <key> <string>truncate</string> </key>

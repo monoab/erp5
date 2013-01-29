@@ -10,9 +10,9 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
-                <string>hidden</string>
                 <string>default</string>
+                <string>hidden</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -80,6 +80,12 @@
             <value>
               <dictionary>
                 <item>
+                    <key> <string>default</string> </key>
+                    <value>
+                      <list/>
+                    </value>
+                </item>
+                <item>
                     <key> <string>field_id</string> </key>
                     <value> <string>my_lines_field</string> </value>
                 </item>
@@ -97,7 +103,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>matrixbox_predicate_value</string> </value>
+                    <value> <string>Predicate Value</string> </value>
                 </item>
               </dictionary>
             </value>

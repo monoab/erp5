@@ -366,6 +366,10 @@
                     <value> <string></string> </value>
                 </item>
                 <item>
+                    <key> <string>context_getter_id</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>css_class</string> </key>
                     <value> <string></string> </value>
                 </item>
@@ -436,6 +440,14 @@
                     <value> <string></string> </value>
                 </item>
                 <item>
+                    <key> <string>max_linelength</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
+                    <key> <string>max_lines</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>parameter_list</string> </key>
                     <value>
                       <list/>
@@ -451,6 +463,16 @@
                         </tuple>
                       </list>
                     </value>
+                </item>
+                <item>
+                    <key> <string>proxy_listbox_ids</string> </key>
+                    <value>
+                      <list/>
+                    </value>
+                </item>
+                <item>
+                    <key> <string>relation_form_id</string> </key>
+                    <value> <string></string> </value>
                 </item>
                 <item>
                     <key> <string>relation_setter_id</string> </key>
@@ -472,7 +494,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Product or Service</string> </value>
+                    <value> <string>Product Or Service</string> </value>
                 </item>
                 <item>
                     <key> <string>truncate</string> </key>

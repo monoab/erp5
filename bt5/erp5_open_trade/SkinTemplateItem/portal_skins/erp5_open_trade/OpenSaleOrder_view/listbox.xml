@@ -341,7 +341,7 @@
                         </tuple>
                         <tuple>
                           <string>resource_title</string>
-                          <string>Product or Service</string>
+                          <string>Product Or Service</string>
                         </tuple>
                         <tuple>
                           <string>quantity</string>
@@ -392,7 +392,7 @@
                         </tuple>
                         <tuple>
                           <string>resource_title</string>
-                          <string>Product or Service</string>
+                          <string>Product Or Service</string>
                         </tuple>
                         <tuple>
                           <string>quantity</string>
@@ -424,6 +424,10 @@
                 <item>
                     <key> <string>css_class</string> </key>
                     <value> <string></string> </value>
+                </item>
+                <item>
+                    <key> <string>default_display_style</string> </key>
+                    <value> <string>table</string> </value>
                 </item>
                 <item>
                     <key> <string>default_params</string> </key>
@@ -506,6 +510,10 @@
                     </value>
                 </item>
                 <item>
+                    <key> <string>global_search_column</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>hidden</string> </key>
                     <value> <int>0</int> </value>
                 </item>
@@ -532,6 +540,10 @@
                     <value>
                       <list/>
                     </value>
+                </item>
+                <item>
+                    <key> <string>page_navigation_template</string> </key>
+                    <value> <string>ListBox_viewSliderPageNavigationRenderer</string> </value>
                 </item>
                 <item>
                     <key> <string>page_template</string> </key>
@@ -619,6 +631,12 @@
                 <item>
                     <key> <string>stat_method</string> </key>
                     <value> <string></string> </value>
+                </item>
+                <item>
+                    <key> <string>style_columns</string> </key>
+                    <value>
+                      <list/>
+                    </value>
                 </item>
                 <item>
                     <key> <string>title</string> </key>

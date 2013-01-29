@@ -403,6 +403,10 @@
                     <value> <string></string> </value>
                 </item>
                 <item>
+                    <key> <string>default_display_style</string> </key>
+                    <value> <string>table</string> </value>
+                </item>
+                <item>
                     <key> <string>default_params</string> </key>
                     <value>
                       <list/>
@@ -490,6 +494,10 @@
                     </value>
                 </item>
                 <item>
+                    <key> <string>global_search_column</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>hidden</string> </key>
                     <value> <int>0</int> </value>
                 </item>
@@ -520,6 +528,10 @@
                 <item>
                     <key> <string>not_viewable</string> </key>
                     <value> <int>0</int> </value>
+                </item>
+                <item>
+                    <key> <string>page_navigation_template</string> </key>
+                    <value> <string>ListBox_viewSliderPageNavigationRenderer</string> </value>
                 </item>
                 <item>
                     <key> <string>page_template</string> </key>
@@ -606,8 +618,14 @@
                     </value>
                 </item>
                 <item>
+                    <key> <string>style_columns</string> </key>
+                    <value>
+                      <list/>
+                    </value>
+                </item>
+                <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Transactions Related to This Account</string> </value>
+                    <value> <string>Transactions Related To This Account</string> </value>
                 </item>
                 <item>
                     <key> <string>untranslatable_columns</string> </key>

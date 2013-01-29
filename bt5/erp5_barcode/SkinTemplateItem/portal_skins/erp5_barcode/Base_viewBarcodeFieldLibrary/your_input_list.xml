@@ -10,9 +10,9 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>width</string>
-                <string>title</string>
                 <string>height</string>
+                <string>title</string>
+                <string>width</string>
               </list>
             </value>
         </item>
@@ -91,7 +91,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Input List</string> </value>
+                    <value> <string>Input</string> </value>
                 </item>
                 <item>
                     <key> <string>width</string> </key>

@@ -10,9 +10,9 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
+                <string>items</string>
                 <string>size</string>
                 <string>title</string>
-                <string>items</string>
               </list>
             </value>
         </item>
@@ -88,6 +88,12 @@
                     <value> <string>Base_viewFieldLibrary</string> </value>
                 </item>
                 <item>
+                    <key> <string>items</string> </key>
+                    <value>
+                      <list/>
+                    </value>
+                </item>
+                <item>
                     <key> <string>size</string> </key>
                     <value> <int>5</int> </value>
                 </item>
@@ -97,7 +103,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Category List</string> </value>
+                    <value> <string>Categories</string> </value>
                 </item>
               </dictionary>
             </value>

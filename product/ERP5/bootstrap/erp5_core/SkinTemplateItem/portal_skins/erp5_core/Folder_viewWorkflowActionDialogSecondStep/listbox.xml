@@ -224,11 +224,11 @@
                       <list>
                         <tuple>
                           <string>workflow_action</string>
-                          <string></string>
+                          <string>Workflow Action</string>
                         </tuple>
                         <tuple>
                           <string>workflow_id</string>
-                          <string></string>
+                          <string>Workflow ID</string>
                         </tuple>
                       </list>
                     </value>
@@ -322,7 +322,7 @@
       <dictionary>
         <item>
             <key> <string>_text</string> </key>
-            <value> <string>python: field.getTemplateField().get_value(\'columns\') + [(\'workflow_action_title\', \'Action\'), (\'workflow_id\', \'\'), (\'workflow_action\', \'\')]</string> </value>
+            <value> <string>python: field.getTemplateField().get_value(\'columns\') + [(\'workflow_action_title\', \'Action\'), (\'workflow_id\', \'Workflow ID\'), (\'workflow_action\', \'Workflow Action\')]</string> </value>
         </item>
       </dictionary>
     </pickle>

@@ -118,7 +118,7 @@
                       <list>
                         <tuple>
                           <string>source</string>
-                          <string>Sender or Caller</string>
+                          <string>Sender Or Caller</string>
                         </tuple>
                         <tuple>
                           <string>Destination</string>
@@ -147,7 +147,7 @@
                         </tuple>
                         <tuple>
                           <string>source_title</string>
-                          <string>Sender or Caller</string>
+                          <string>Sender Or Caller</string>
                         </tuple>
                         <tuple>
                           <string>destination_title</string>

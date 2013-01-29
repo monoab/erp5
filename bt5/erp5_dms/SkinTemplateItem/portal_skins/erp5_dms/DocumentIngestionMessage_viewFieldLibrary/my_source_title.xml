@@ -10,11 +10,11 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
                 <string>base_category</string>
-                <string>portal_type</string>
                 <string>catalog_index</string>
                 <string>editable</string>
+                <string>portal_type</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -136,7 +136,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>Sender or Caller</string> </value>
+                    <value> <string>Sender Or Caller</string> </value>
                 </item>
               </dictionary>
             </value>

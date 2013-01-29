@@ -42,6 +42,12 @@
             <value> <string></string> </value>
         </item>
         <item>
+            <key> <string>edit_order</string> </key>
+            <value>
+              <list/>
+            </value>
+        </item>
+        <item>
             <key> <string>encoding</string> </key>
             <value> <string>UTF-8</string> </value>
         </item>
@@ -127,7 +133,7 @@
         </item>
         <item>
             <key> <string>title</string> </key>
-            <value> <string>Import OpenOffice Document</string> </value>
+            <value> <string>Import Open Office Document</string> </value>
         </item>
         <item>
             <key> <string>unicode_mode</string> </key>
@@ -135,6 +141,10 @@
         </item>
         <item>
             <key> <string>update_action</string> </key>
+            <value> <string></string> </value>
+        </item>
+        <item>
+            <key> <string>update_action_title</string> </key>
             <value> <string></string> </value>
         </item>
       </dictionary>

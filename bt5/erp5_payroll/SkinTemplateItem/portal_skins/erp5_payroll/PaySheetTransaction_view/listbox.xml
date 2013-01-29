@@ -128,7 +128,7 @@
                       <list>
                         <tuple>
                           <string>int_index</string>
-                          <string>PaySheet Order</string>
+                          <string>Pay Sheet Order</string>
                         </tuple>
                         <tuple>
                           <string>title</string>
@@ -263,10 +263,7 @@
   </record>
   <record id="5" aka="AAAAAAAAAAU=">
     <pickle>
-      <tuple>
-        <global name="Method" module="Products.Formulator.MethodField"/>
-        <tuple/>
-      </tuple>
+      <global name="Method" module="Products.Formulator.MethodField"/>
     </pickle>
     <pickle>
       <dictionary>

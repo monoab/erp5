@@ -62,18 +62,20 @@
 #   translated naturally for other languages).\n
 # - Check skin names.\n
 # - Check script names (from skin folders and workflows).\n
-\n
+import re\n
 ABBRIVIATION_WORD_LIST = ( \'ID\', \'URL\', \'URI\', \'VAT\', \'FAX\', \'GAP\', \'IBAN\', \'BBAN\', \'EAN\', \'BOM\', \'BIC\'\n
-                         , \'CSV\', \'SVN\', \'UBM\', \'VPN\', \'CAD\', \'ERP5\'\n
+                         , \'CSV\', \'SVN\', \'UBM\', \'VPN\', \'CAD\', \'ERP5\', \'PDM\', \'HTML\', \'SQL\',\n
+                         \'ZODB\', \'UOM\', \'TALES\', \'RAM\', \'MIME\', \'RSS\', \'PDF\', \'DMS\', \'CRM\', \'PO\', \n
+                         \'VCS\', \'TSV\', \'KM\', \'OAUTH\', \'VADS\', \'ODT\', \'CTX\', \'SMS\', \'UID\'\n
                          )\n
 ABBRIVIATION_WORD_DICT = dict([(word, 1) for word in ABBRIVIATION_WORD_LIST])\n
 \n
 # List of words that do not need to be titlecased\n
-LOWERCASE_WORD_LIST = (\'g\', \'cm\', \'kg\', \'%\', \'/\', \'...\')\n
+LOWERCASE_WORD_LIST = (\'g\', \'cm\', \'kg\', \'%\', \'/\', \'...\', \'m\', \'-\', \'g/m2\', \'iCalendar\')\n
 LOWERCASE_WORD_DICT = dict([(word, 1) for word in LOWERCASE_WORD_LIST])\n
 \n
 # List of allowed characters, usefull to detect non-english strings\n
-ALLOWED_CHARS = \'abcdefghijklmnopqrstuvwxyz0123456789%/. ()-_?&\'\n
+ALLOWED_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789%/. ()-_?&\'#"\n
 \n
 def checkField(folder, form, field):\n
   """\n
@@ -95,7 +97,7 @@ def checkField(folder, form, field):\n
       error_message += checkTitle(path, \'all_columns\', title, field)\n
 \n
     if (a!= None and not a.endswith(\'List\')):\n
-      if a not in [\'portal_catalog\', \'searchFolder\', \'objectValues\']:\n
+      if a not in [\'portal_catalog\', \'searchFolder\', \'objectValues\', \'contentValues\']:\n
         error_message = "%s : %s : %r Bad Naming Convention\\n" % (path, id, a)\n
   return error_message\n
 \n
@@ -112,6 +114,12 @@ def getFieldFromProxyField(field):\n
     template_field = field.getRecursiveTemplateField()\n
     return template_field\n
   return field      \n
+\n
+def titlecase(s):\n
+  return re.sub(r"[A-Za-z]+(\'[A-Za-z]+)?",\n
+                   lambda mo: mo.group(0)[0].upper() +\n
+                              mo.group(0)[1:].lower(),\n
+                   s)\n
 \n
 def checkTitle(path, id, title, field=None):\n
   """\n
@@ -140,8 +148,11 @@ def checkTitle(path, id, title, field=None):\n
     elif word.endswith(\'s\') and word[:-1].upper() in ABBRIVIATION_WORD_DICT:\n
       if not word[:-1].isupper():\n
         error_message += \'%s : %s : %r is not upper case even though it is an abbriviation\\n\' % (path, id, word)\n
+    elif "-" in word and word.split("-")[0].upper() in ABBRIVIATION_WORD_DICT:\n
+      if not word.split("-")[0].isupper():\n
+        error_message += \'%s : %s : %r is not upper case even though it is an abbriviation\\n\' % (path, id, word)\n
     else:\n
-      if not word.istitle() and word not in LOWERCASE_WORD_DICT:\n
+      if (word.capitalize()!= word and titlecase(word)!= word) and word not in LOWERCASE_WORD_DICT:\n
         error_message += \'%s : %s : %r is not titlecased\\n\' % (path, id, word)\n
   if len(word_list) > 1 and word_list[-1].upper() == \'LIST\' and word_list[-2].upper() != \'PACKING\':\n
     error_message += \'%s : %s : %r is a jargon\\n\' % (path, id, title)\n
@@ -194,7 +205,12 @@ for wf in context.portal_workflow.objectValues():\n
 \n
 \n
 # Test portal types\n
-for ptype in context.portal_types.objectValues():\n
+portal_types = [x for x in context.portal_types.objectValues() if x.id not in \n
+                  [\'Application Id Generator\', \'Conceptual Id Generator\', \'DateTime Divergence Tester\',\n
+                  \'Distributed Ram Cache\', \'Fax\', \'Fax Message\', \'Id Tool\', \'OAuth Tool\', \'OOo Document\',\n
+                   \'Ram Cache\', \'SQL Non Continuous Increasing Id Generator\', \'Url Registry Tool\',\n
+                   \'ZODB Continuous Increasing Id Generator\']]\n
+for ptype in portal_types:\n
   pt_title = ptype.title\n
   pt_id = ptype.id\n
   message = \'\'\n

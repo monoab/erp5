@@ -10,9 +10,9 @@
             <key> <string>delegated_list</string> </key>
             <value>
               <list>
-                <string>title</string>
                 <string>default</string>
                 <string>enabled</string>
+                <string>title</string>
               </list>
             </value>
         </item>
@@ -86,6 +86,14 @@
             <value>
               <dictionary>
                 <item>
+                    <key> <string>default</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
+                    <key> <string>enabled</string> </key>
+                    <value> <int>1</int> </value>
+                </item>
+                <item>
                     <key> <string>field_id</string> </key>
                     <value> <string>my_editor_field</string> </value>
                 </item>
@@ -99,7 +107,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>text_content</string> </value>
+                    <value> <string>Text Content</string> </value>
                 </item>
               </dictionary>
             </value>

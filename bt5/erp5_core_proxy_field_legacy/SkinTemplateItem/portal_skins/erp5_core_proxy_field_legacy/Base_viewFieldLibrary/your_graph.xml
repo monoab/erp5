@@ -450,6 +450,14 @@
                     <value> <string>0</string> </value>
                 </item>
                 <item>
+                    <key> <string>listbox_form_id</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
+                    <key> <string>listbox_id</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>ooo_template</string> </key>
                     <value> <string>ERP5Site_viewChart</string> </value>
                 </item>
@@ -475,7 +483,7 @@
                 </item>
                 <item>
                     <key> <string>title</string> </key>
-                    <value> <string>your_graph</string> </value>
+                    <value> <string>Graph</string> </value>
                 </item>
                 <item>
                     <key> <string>user_column_id_list</string> </key>
@@ -486,6 +494,18 @@
                 <item>
                     <key> <string>user_data_title</string> </key>
                     <value> <string></string> </value>
+                </item>
+                <item>
+                    <key> <string>x_axis_property_list</string> </key>
+                    <value>
+                      <list/>
+                    </value>
+                </item>
+                <item>
+                    <key> <string>y_axis_property_list</string> </key>
+                    <value>
+                      <list/>
+                    </value>
                 </item>
               </dictionary>
             </value>

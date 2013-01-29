@@ -89,7 +89,7 @@
                       <list>
                         <tuple>
                           <string>title</string>
-                          <string>Product or Service</string>
+                          <string>Product Or Service</string>
                         </tuple>
                         <tuple>
                           <string>reference</string>
@@ -97,7 +97,7 @@
                         </tuple>
                         <tuple>
                           <string>resource_relative_url</string>
-                          <string>Product or Service</string>
+                          <string>Product Or Service</string>
                         </tuple>
                         <tuple>
                           <string>variation_category_list</string>
@@ -140,7 +140,7 @@
                       <list>
                         <tuple>
                           <string>title</string>
-                          <string>Product or Service</string>
+                          <string>Product Or Service</string>
                         </tuple>
                         <tuple>
                           <string>reference</string>
@@ -211,7 +211,7 @@
                       <list>
                         <tuple>
                           <string>title</string>
-                          <string>Product or Service</string>
+                          <string>Product Or Service</string>
                         </tuple>
                         <tuple>
                           <string>reference</string>

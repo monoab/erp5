@@ -409,7 +409,7 @@
                         </tuple>
                         <tuple>
                           <string>total_price</string>
-                          <string>Amount of Sales</string>
+                          <string>Amount Of Sales</string>
                         </tuple>
                         <tuple>
                           <string>image</string>
@@ -494,6 +494,10 @@
                     </value>
                 </item>
                 <item>
+                    <key> <string>global_search_column</string> </key>
+                    <value> <string></string> </value>
+                </item>
+                <item>
                     <key> <string>hidden</string> </key>
                     <value> <int>0</int> </value>
                 </item>
@@ -524,6 +528,10 @@
                 <item>
                     <key> <string>page_navigation_mode</string> </key>
                     <value> <string>slider</string> </value>
+                </item>
+                <item>
+                    <key> <string>page_navigation_template</string> </key>
+                    <value> <string>ListBox_viewSliderPageNavigationRenderer</string> </value>
                 </item>
                 <item>
                     <key> <string>page_template</string> </key>
@@ -600,6 +608,12 @@
                     <value> <string></string> </value>
                 </item>
                 <item>
+                    <key> <string>style_columns</string> </key>
+                    <value>
+                      <list/>
+                    </value>
+                </item>
+                <item>
                     <key> <string>title</string> </key>
                     <value> <string>Products</string> </value>
                 </item>
@@ -639,10 +653,7 @@
   </record>
   <record id="3" aka="AAAAAAAAAAM=">
     <pickle>
-      <tuple>
-        <global name="Method" module="Products.Formulator.MethodField"/>
-        <tuple/>
-      </tuple>
+      <global name="Method" module="Products.Formulator.MethodField"/>
     </pickle>
     <pickle>
       <dictionary>

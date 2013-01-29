@@ -149,7 +149,7 @@ return l\n
         </item>
         <item>
             <key> <string>id</string> </key>
-            <value> <string>ListBox_initializeFastInput</string> </value>
+            <value> <string>Listbox_initializeFastInputDocumentList</string> </value>
         </item>
         <item>
             <key> <string>title</string> </key>
